@@ -17,6 +17,10 @@ jobs:
     defaults:
       run:
         working-directory: apps/backend
+    # No se conecta a una base real (tests usan mocks, prisma validate/generate solo leen el
+    # schema) pero Prisma exige que la variable referenciada en el datasource este definida.
+    env:
+      DATABASE_URL: "sqlserver://localhost:1433;database=ci;user=sa;password=ci-placeholder;encrypt=true;trustServerCertificate=true"
     steps:
       - uses: actions/checkout@v4
 
