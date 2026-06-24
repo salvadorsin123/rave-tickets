@@ -6,6 +6,8 @@ export const ZONA_HORARIA_MX = 'America/Mexico_City';
 
 /** Año calendario en hora de Ciudad de Mexico (no necesariamente el año UTC del servidor). */
 export function anioEnZonaMx(fecha: Date): number {
-  const valor = new Intl.DateTimeFormat('en-US', { timeZone: ZONA_HORARIA_MX, year: 'numeric' }).format(fecha);
+  const valor = new Intl.DateTimeFormat('en-US', { timeZone: ZONA_HORARIA_MX, year: 'numeric' }).format(
+    fecha,
+  );
   return Number(valor);
 }

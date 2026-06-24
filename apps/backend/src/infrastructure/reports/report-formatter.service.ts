@@ -5,6 +5,7 @@ import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
 import { Parser as CsvParser } from 'json2csv';
 // Ver nota en pdfkit-generator.service.ts: pdfkit es CJS puro, el default import rompe en runtime.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import PDFDocument = require('pdfkit');
 import { ReportFormatterPort } from '@application/ports/infrastructure.port';
 

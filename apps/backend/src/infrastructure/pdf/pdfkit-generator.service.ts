@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 // pdfkit es un modulo CommonJS puro (`module.exports = PDFDocument`); sus tipos declaran un
 // default export "ESM-style" que no existe en runtime. El import por default compila a
 // `pdfkit_1.default` y rompe con "is not a constructor". Este import-require evita el problema.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import PDFDocument = require('pdfkit');
 import { DatosPdfBoleto, PdfGeneratorPort } from '@application/ports/infrastructure.port';
 import { ZONA_HORARIA_MX } from '@shared/zona-horaria.util';
@@ -54,7 +55,10 @@ export class PdfKitGeneratorService implements PdfGeneratorPort {
         try {
           const logoAncho = 150;
           const logoAlto = 95;
-          doc.image(datos.logoBuffer, (ancho - logoAncho) / 2, y, { fit: [logoAncho, logoAlto], align: 'center' });
+          doc.image(datos.logoBuffer, (ancho - logoAncho) / 2, y, {
+            fit: [logoAncho, logoAlto],
+            align: 'center',
+          });
           y += logoAlto + 14;
         } catch {
           // Logo corrupto o en un formato que pdfkit no puede decodificar: se omite y el
@@ -66,7 +70,10 @@ export class PdfKitGeneratorService implements PdfGeneratorPort {
         .font('Helvetica-Bold')
         .fontSize(21)
         .fillColor(NEGRO)
-        .text(datos.nombreEvento.toUpperCase(), margenInterior, y, { width: anchoContenido, align: 'center' });
+        .text(datos.nombreEvento.toUpperCase(), margenInterior, y, {
+          width: anchoContenido,
+          align: 'center',
+        });
       y = doc.y + 4;
 
       const fechaTexto = datos.fechaEvento.toLocaleDateString('es-MX', {
@@ -85,7 +92,11 @@ export class PdfKitGeneratorService implements PdfGeneratorPort {
         });
       y = doc.y + 14;
 
-      doc.moveTo(margenInterior, y).lineTo(ancho - margenInterior, y).lineWidth(1).stroke(NEGRO);
+      doc
+        .moveTo(margenInterior, y)
+        .lineTo(ancho - margenInterior, y)
+        .lineWidth(1)
+        .stroke(NEGRO);
       y += 16;
 
       doc
@@ -106,7 +117,10 @@ export class PdfKitGeneratorService implements PdfGeneratorPort {
         .font('Helvetica')
         .fontSize(10)
         .fillColor(GRIS)
-        .text(`${datos.cantidadPersonas} persona(s)`, margenInterior, y, { width: anchoContenido, align: 'center' });
+        .text(`${datos.cantidadPersonas} persona(s)`, margenInterior, y, {
+          width: anchoContenido,
+          align: 'center',
+        });
       y = doc.y + 16;
 
       const qrSize = 145;
