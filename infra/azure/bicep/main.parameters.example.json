@@ -9,6 +9,6 @@
     "jwtAccessSecret": { "value": "REEMPLAZAR-secreto-aleatorio-largo" },
     "jwtRefreshSecret": { "value": "REEMPLAZAR-otro-secreto-aleatorio-largo" },
     "appServicePlanSku": { "value": "B1" },
-    "sqlDatabaseSku": { "value": "S0" }
+    "sqlDatabaseSku": { "value": "Basic" }
   }
 }

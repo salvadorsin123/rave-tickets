@@ -32,8 +32,8 @@ param containerImageTag string = 'latest'
 @description('SKU del App Service Plan (Linux). B1 para demo/dev, P0v3+ recomendado para produccion.')
 param appServicePlanSku string = 'B1'
 
-@description('SKU de la base de datos Azure SQL.')
-param sqlDatabaseSku string = 'S0'
+@description('SKU de la base de datos Azure SQL. "Basic" (5 DTU, 2GB) alcanza sobrado para cargas chicas (<10 usuarios).')
+param sqlDatabaseSku string = 'Basic'
 
 @description('Origen permitido por CORS en el backend (URL publica del frontend).')
 param corsOrigin string = 'https://${environmentName}-web.azurewebsites.net'
@@ -103,7 +103,7 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2022-05-01-preview' = {
   parent: sqlServer
   name: sqlDatabaseName
   location: location
-  sku: { name: sqlDatabaseSku, tier: 'Standard' }
+  sku: { name: sqlDatabaseSku, tier: sqlDatabaseSku == 'Basic' ? 'Basic' : 'Standard' }
   properties: {
     zoneRedundant: false
   }
