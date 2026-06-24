@@ -1,4 +1,4 @@
-import { EstadoBoleto, EstadoEvento, ResultadoEscaneo, RolNombre } from './enums';
+import { EstadoBoleto, EstadoEvento, ResultadoEscaneo, RolNombre, TipoEscaneo } from './enums';
 
 export interface UsuarioAutenticado {
   id: string;
@@ -63,6 +63,7 @@ export interface EscaneoEntity {
   escaneadorId: string;
   personasIngresadasEnEsteEscaneo: number;
   resultado: ResultadoEscaneo;
+  tipo: TipoEscaneo;
   fechaHora: string;
   ipAddress: string | null;
   deviceInfo: string | null;

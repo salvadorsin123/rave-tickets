@@ -2,8 +2,9 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuard
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { IsOptional, IsUUID } from 'class-validator';
-import { ResultadoValidacionDto, ValidarEntradaDto } from '@application/dtos/escaneos.dto';
+import { ResultadoValidacionDto, ValidarEntradaDto, ValidarSalidaDto } from '@application/dtos/escaneos.dto';
 import { ValidarEntradaUseCase } from '@application/use-cases/escaneos/validar-entrada.use-case';
+import { ValidarSalidaUseCase } from '@application/use-cases/escaneos/validar-salida.use-case';
 import { HistorialPersonalUseCase } from '@application/use-cases/escaneos/historial-personal.use-case';
 import { ConsultarEscaneosUseCase } from '@application/use-cases/escaneos/consultar-escaneos.use-case';
 import { EscaneoEntity } from '@domain/entities/escaneo.entity';
@@ -27,6 +28,7 @@ class ConsultarEscaneosQueryDto {
 export class EscaneosController {
   constructor(
     private readonly validarEntradaUseCase: ValidarEntradaUseCase,
+    private readonly validarSalidaUseCase: ValidarSalidaUseCase,
     private readonly historialPersonalUseCase: HistorialPersonalUseCase,
     private readonly consultarEscaneosUseCase: ConsultarEscaneosUseCase,
   ) {}
@@ -41,6 +43,22 @@ export class EscaneosController {
     @Req() req: Request,
   ): Promise<ResultadoValidacionDto> {
     return this.validarEntradaUseCase.execute(dto, {
+      escaneadorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+      deviceInfo: req.headers['user-agent'] ?? null,
+    });
+  }
+
+  /** Registra la salida de personas que ya habian ingresado, sin afectar el escaneo de entrada. */
+  @Roles(RolNombre.ESCANEADOR, RolNombre.ADMIN)
+  @Post('validar-salida')
+  @HttpCode(HttpStatus.OK)
+  async validarSalida(
+    @Body() dto: ValidarSalidaDto,
+    @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
+  ): Promise<ResultadoValidacionDto> {
+    return this.validarSalidaUseCase.execute(dto, {
       escaneadorId: usuario.sub,
       ipAddress: req.ip ?? null,
       deviceInfo: req.headers['user-agent'] ?? null,

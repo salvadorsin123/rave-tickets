@@ -13,6 +13,13 @@ const RESULTADO_LABEL: Record<string, string> = {
   YaUtilizado: 'Ya utilizado',
   Invalido: 'Inválido',
   Fraude: 'Fraude',
+  SalidaValida: 'Salida válida',
+  SinIngresos: 'Sin ingresos',
+};
+
+const TIPO_LABEL: Record<string, string> = {
+  Entrada: 'Entrada',
+  Salida: 'Salida',
 };
 
 export function ActividadModal({ escaneador, onClose }: { escaneador: UsuarioResponse | null; onClose: () => void }) {
@@ -42,6 +49,7 @@ export function ActividadModal({ escaneador, onClose }: { escaneador: UsuarioRes
             <thead>
               <tr className="border-b border-base-700 text-left text-xs uppercase text-base-400">
                 <th className="px-3 py-2">Fecha y hora</th>
+                <th className="px-3 py-2">Tipo</th>
                 <th className="px-3 py-2">Personas</th>
                 <th className="px-3 py-2">Resultado</th>
               </tr>
@@ -56,6 +64,7 @@ export function ActividadModal({ escaneador, onClose }: { escaneador: UsuarioRes
                       timeZone: ZONA_HORARIA_MX,
                     })}
                   </td>
+                  <td className="px-3 py-2 text-base-300">{TIPO_LABEL[escaneo.tipo] ?? escaneo.tipo}</td>
                   <td className="px-3 py-2 text-base-300">{escaneo.personasIngresadasEnEsteEscaneo}</td>
                   <td className="px-3 py-2">
                     <ResultadoEscaneoBadge resultado={escaneo.resultado} label={RESULTADO_LABEL[escaneo.resultado]} />

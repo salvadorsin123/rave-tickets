@@ -7,6 +7,7 @@ import {
 } from '@application/ports/repositories.port';
 import { EscaneoEntity } from '@domain/entities/escaneo.entity';
 import { ResultadoEscaneo } from '@domain/enums/resultado-escaneo.enum';
+import { TipoEscaneo } from '@domain/enums/tipo-escaneo.enum';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class EscaneoPrismaRepository implements EscaneoRepositoryPort {
         escaneadorId: data.escaneadorId,
         personasIngresadasEnEsteEscaneo: data.personasIngresadasEnEsteEscaneo,
         resultado: data.resultado,
+        tipo: data.tipo,
         ipAddress: data.ipAddress,
         deviceInfo: data.deviceInfo,
       },
@@ -69,6 +71,7 @@ export class EscaneoPrismaRepository implements EscaneoRepositoryPort {
       row.escaneadorId,
       row.personasIngresadasEnEsteEscaneo,
       row.resultado as ResultadoEscaneo,
+      row.tipo as TipoEscaneo,
       row.fechaHora,
       row.ipAddress,
       row.deviceInfo,

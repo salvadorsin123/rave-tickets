@@ -130,6 +130,7 @@ model Escaneo {
   escaneador                      Usuario  @relation("EscaneoPorEscaneador", fields: [escaneadorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   personasIngresadasEnEsteEscaneo Int
   resultado                       String   @db.VarChar(30)
+  tipo                            String   @default("Entrada") @db.VarChar(20)
   fechaHora                       DateTime @default(now())
   ipAddress                       String?  @db.VarChar(45)
   deviceInfo                      String?  @db.VarChar(255)

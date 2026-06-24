@@ -98,11 +98,13 @@ export interface BoletoRepositoryPort {
   asignarPdfUrl(boletoId: string, pdfUrl: string): Promise<void>;
   actualizarEstado(boleto: BoletoEntity): Promise<void>;
   /**
-   * Compare-and-swap: solo aplica el incremento si `personasIngresadasEsperadas`
+   * Compare-and-swap: solo aplica el cambio si `personasIngresadasEsperadas`
    * coincide con el valor actual en BD. Devuelve false si hubo una escritura
-   * concurrente (el llamador debe reintentar releyendo el boleto).
+   * concurrente (el llamador debe reintentar releyendo el boleto). Sirve tanto
+   * para incrementos (entrada) como decrementos (salida): el metodo solo
+   * escribe el valor absoluto `nuevasPersonasIngresadas` que el llamador calculo.
    */
-  incrementarIngresoAtomico(
+  actualizarIngresoAtomico(
     boletoId: string,
     personasIngresadasEsperadas: number,
     nuevasPersonasIngresadas: number,
@@ -115,6 +117,7 @@ export interface CrearEscaneoData {
   escaneadorId: string;
   personasIngresadasEnEsteEscaneo: number;
   resultado: string;
+  tipo: string;
   ipAddress: string | null;
   deviceInfo: string | null;
 }

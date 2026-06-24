@@ -12,6 +12,13 @@ const RESULTADO_LABEL: Record<string, string> = {
   YaUtilizado: 'Ya utilizado',
   Invalido: 'Inválido',
   Fraude: 'Fraude',
+  SalidaValida: 'Salida válida',
+  SinIngresos: 'Sin ingresos',
+};
+
+const TIPO_LABEL: Record<string, string> = {
+  Entrada: 'Entrada',
+  Salida: 'Salida',
 };
 
 export function HistorialView() {
@@ -38,6 +45,7 @@ export function HistorialView() {
             <thead>
               <tr className="border-b border-base-700 text-left text-xs uppercase text-base-400">
                 <th className="px-4 py-3">Hora</th>
+                <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Personas</th>
                 <th className="px-4 py-3">Resultado</th>
               </tr>
@@ -52,6 +60,7 @@ export function HistorialView() {
                       timeZone: ZONA_HORARIA_MX,
                     })}
                   </td>
+                  <td className="px-4 py-3 text-base-300">{TIPO_LABEL[escaneo.tipo] ?? escaneo.tipo}</td>
                   <td className="px-4 py-3 text-base-300">{escaneo.personasIngresadasEnEsteEscaneo}</td>
                   <td className="px-4 py-3">
                     <ResultadoEscaneoBadge resultado={escaneo.resultado} label={RESULTADO_LABEL[escaneo.resultado]} />

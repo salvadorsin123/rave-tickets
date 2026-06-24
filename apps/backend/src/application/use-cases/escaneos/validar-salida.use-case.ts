@@ -6,42 +6,34 @@ import {
   BoletoRepositoryPort,
   ESCANEO_REPOSITORY,
   EscaneoRepositoryPort,
-  USUARIO_REPOSITORY,
-  UsuarioRepositoryPort,
   VENTA_REPOSITORY,
   VentaRepositoryPort,
 } from '@application/ports/repositories.port';
-import { ResultadoValidacionDto, ValidarEntradaDto } from '@application/dtos/escaneos.dto';
+import { ResultadoValidacionDto, ValidarSalidaDto } from '@application/dtos/escaneos.dto';
 import { BoletoEntity } from '@domain/entities/boleto.entity';
 import { ESTADOS_TERMINALES } from '@domain/enums/estado-boleto.enum';
 import { ResultadoEscaneo } from '@domain/enums/resultado-escaneo.enum';
 import { TipoEscaneo } from '@domain/enums/tipo-escaneo.enum';
 import { TokenValidacion } from '@domain/value-objects/token-validacion.vo';
+import { ContextoEscaneo } from './validar-entrada.use-case';
 
 const MAX_REINTENTOS_CONCURRENCIA = 3;
 
-export interface ContextoEscaneo {
-  escaneadorId: string;
-  ipAddress: string | null;
-  deviceInfo: string | null;
-}
-
 /**
- * UC-25/26/27/30/31/32: valida un QR, registra el ingreso (parcial o total)
- * de forma atomica (compare-and-swap sobre personasIngresadas para soportar
- * escaneos concurrentes sobre el mismo boleto) y deja rastro en bitacora.
+ * Registra la salida de una o mas personas de un boleto que ya habian ingresado,
+ * liberando cupo para que puedan volver a validarse por la entrada mas adelante.
+ * No interfiere con el flujo de validar-entrada: solo decrementa personasIngresadas.
  */
 @Injectable()
-export class ValidarEntradaUseCase {
+export class ValidarSalidaUseCase {
   constructor(
     @Inject(BOLETO_REPOSITORY) private readonly boletoRepository: BoletoRepositoryPort,
     @Inject(VENTA_REPOSITORY) private readonly ventaRepository: VentaRepositoryPort,
     @Inject(ESCANEO_REPOSITORY) private readonly escaneoRepository: EscaneoRepositoryPort,
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
-    @Inject(USUARIO_REPOSITORY) private readonly usuarioRepository: UsuarioRepositoryPort,
   ) {}
 
-  async execute(dto: ValidarEntradaDto, contexto: ContextoEscaneo): Promise<ResultadoValidacionDto> {
+  async execute(dto: ValidarSalidaDto, contexto: ContextoEscaneo): Promise<ResultadoValidacionDto> {
     const boleto = await this.boletoRepository.findById(dto.uuid);
 
     if (!boleto) {
@@ -66,26 +58,40 @@ export class ValidarEntradaUseCase {
       await this.registrarEscaneo(boleto.id, contexto, 0, ResultadoEscaneo.FRAUDE);
       return {
         resultado: ResultadoEscaneo.FRAUDE,
-        mensaje: `Boleto en estado ${boleto.estado}, no admite ingreso`,
+        mensaje: `Boleto en estado ${boleto.estado}, no admite salida`,
       };
     }
 
-    if (boleto.cupoDisponible <= 0) {
-      return this.responderYaUtilizada(boleto, contexto);
+    if (boleto.personasIngresadas <= 0) {
+      await this.registrarEscaneo(boleto.id, contexto, 0, ResultadoEscaneo.SIN_INGRESOS);
+      return {
+        resultado: ResultadoEscaneo.SIN_INGRESOS,
+        mensaje: 'NO HAY PERSONAS DE ESTE BOLETO DENTRO DEL EVENTO',
+      };
     }
 
-    const cantidadIngresan = Math.min(dto.personasIngresan ?? boleto.cupoDisponible, boleto.cupoDisponible);
-    const boletoActualizado = await this.registrarIngresoConReintentos(boleto, cantidadIngresan);
+    const cantidadSalen = Math.min(dto.personasSalen ?? boleto.personasIngresadas, boleto.personasIngresadas);
+    const boletoActualizado = await this.registrarSalidaConReintentos(boleto, cantidadSalen);
     if (!boletoActualizado) {
-      return this.responderYaUtilizada(await this.recargar(boleto.id), contexto);
+      const recargado = await this.recargar(boleto.id);
+      await this.registrarEscaneo(recargado.id, contexto, 0, ResultadoEscaneo.SIN_INGRESOS);
+      return {
+        resultado: ResultadoEscaneo.SIN_INGRESOS,
+        mensaje: 'NO HAY PERSONAS DE ESTE BOLETO DENTRO DEL EVENTO',
+      };
     }
 
-    await this.registrarEscaneo(boletoActualizado.id, contexto, cantidadIngresan, ResultadoEscaneo.VALIDO);
+    await this.registrarEscaneo(
+      boletoActualizado.id,
+      contexto,
+      cantidadSalen,
+      ResultadoEscaneo.SALIDA_VALIDA,
+    );
 
     const venta = await this.ventaRepository.findById(boletoActualizado.ventaId);
     return {
-      resultado: ResultadoEscaneo.VALIDO,
-      mensaje: 'ENTRADA VALIDA',
+      resultado: ResultadoEscaneo.SALIDA_VALIDA,
+      mensaje: 'SALIDA REGISTRADA',
       boleto: {
         folio: boletoActualizado.folio,
         nombreComprador: venta?.nombreComprador ?? '',
@@ -96,20 +102,20 @@ export class ValidarEntradaUseCase {
     };
   }
 
-  private async registrarIngresoConReintentos(
+  private async registrarSalidaConReintentos(
     boletoInicial: BoletoEntity,
-    cantidadIngresan: number,
+    cantidadSalen: number,
   ): Promise<BoletoEntity | null> {
     let boletoActual = boletoInicial;
 
     for (let intento = 0; intento < MAX_REINTENTOS_CONCURRENCIA; intento++) {
-      if (boletoActual.cupoDisponible <= 0 || ESTADOS_TERMINALES.has(boletoActual.estado)) {
+      if (boletoActual.personasIngresadas <= 0 || ESTADOS_TERMINALES.has(boletoActual.estado)) {
         return null;
       }
 
       const personasIngresadasEsperadas = boletoActual.personasIngresadas;
       const copia = this.clonar(boletoActual);
-      copia.registrarIngreso(cantidadIngresan);
+      copia.registrarSalida(cantidadSalen);
 
       const aplicado = await this.boletoRepository.actualizarIngresoAtomico(
         boletoActual.id,
@@ -125,29 +131,7 @@ export class ValidarEntradaUseCase {
       boletoActual = await this.recargar(boletoActual.id);
     }
 
-    throw new ConflictException('No se pudo registrar el ingreso por alta concurrencia, intente nuevamente');
-  }
-
-  private async responderYaUtilizada(
-    boleto: BoletoEntity,
-    contexto: ContextoEscaneo,
-  ): Promise<ResultadoValidacionDto> {
-    const primerIngreso = await this.escaneoRepository.primerIngresoDe(boleto.id);
-    await this.registrarEscaneo(boleto.id, contexto, 0, ResultadoEscaneo.YA_UTILIZADO);
-    const escaneadorAnterior = primerIngreso
-      ? await this.usuarioRepository.findById(primerIngreso.escaneadorId)
-      : null;
-
-    return {
-      resultado: ResultadoEscaneo.YA_UTILIZADO,
-      mensaje: 'ESTA ENTRADA YA FUE UTILIZADA',
-      primerIngreso: primerIngreso
-        ? {
-            fechaHora: primerIngreso.fechaHora,
-            escaneadorNombre: escaneadorAnterior?.nombre ?? 'Desconocido',
-          }
-        : undefined,
-    };
+    throw new ConflictException('No se pudo registrar la salida por alta concurrencia, intente nuevamente');
   }
 
   private async registrarEscaneo(
@@ -161,13 +145,13 @@ export class ValidarEntradaUseCase {
       escaneadorId: contexto.escaneadorId,
       personasIngresadasEnEsteEscaneo: cantidad,
       resultado,
-      tipo: TipoEscaneo.ENTRADA,
+      tipo: TipoEscaneo.SALIDA,
       ipAddress: contexto.ipAddress,
       deviceInfo: contexto.deviceInfo,
     });
     await this.bitacoraRepository.registrar({
       usuarioId: contexto.escaneadorId,
-      accion: `ESCANEO_${resultado.toUpperCase()}`,
+      accion: `ESCANEO_SALIDA_${resultado.toUpperCase()}`,
       entidadAfectada: 'Boleto',
       entidadId: boletoId,
       detalles: null,

@@ -68,7 +68,7 @@ export class BoletoPrismaRepository implements BoletoRepositoryPort {
     });
   }
 
-  async incrementarIngresoAtomico(
+  async actualizarIngresoAtomico(
     boletoId: string,
     personasIngresadasEsperadas: number,
     nuevasPersonasIngresadas: number,

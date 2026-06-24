@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { ValidarEntradaUseCase } from './validar-entrada.use-case';
+import { ValidarSalidaUseCase } from './validar-salida.use-case';
 import { BoletoEntity } from '@domain/entities/boleto.entity';
 import { VentaEntity } from '@domain/entities/venta.entity';
 import { EstadoBoleto } from '@domain/enums/estado-boleto.enum';
@@ -9,7 +9,6 @@ import {
   BoletoRepositoryPort,
   BitacoraRepositoryPort,
   EscaneoRepositoryPort,
-  UsuarioRepositoryPort,
   VentaRepositoryPort,
 } from '@application/ports/repositories.port';
 
@@ -29,8 +28,8 @@ function crearBoleto(overrides: BoletoOverrides = {}): BoletoEntity {
     'evento-1',
     TOKEN_HASH,
     2,
-    overrides.personasIngresadas ?? 0,
-    overrides.estado ?? EstadoBoleto.PENDIENTE,
+    overrides.personasIngresadas ?? 1,
+    overrides.estado ?? EstadoBoleto.PARCIALMENTE_UTILIZADO,
     null,
     new Date('2026-01-01T00:00:00Z'),
     new Date('2026-01-01T00:00:00Z'),
@@ -39,13 +38,12 @@ function crearBoleto(overrides: BoletoOverrides = {}): BoletoEntity {
 
 const CONTEXTO = { escaneadorId: 'escaneador-1', ipAddress: '127.0.0.1', deviceInfo: 'jest' };
 
-describe('ValidarEntradaUseCase', () => {
+describe('ValidarSalidaUseCase', () => {
   let boletoRepository: jest.Mocked<BoletoRepositoryPort>;
   let ventaRepository: jest.Mocked<VentaRepositoryPort>;
   let escaneoRepository: jest.Mocked<EscaneoRepositoryPort>;
   let bitacoraRepository: jest.Mocked<BitacoraRepositoryPort>;
-  let usuarioRepository: jest.Mocked<UsuarioRepositoryPort>;
-  let useCase: ValidarEntradaUseCase;
+  let useCase: ValidarSalidaUseCase;
 
   beforeEach(() => {
     boletoRepository = {
@@ -71,20 +69,12 @@ describe('ValidarEntradaUseCase', () => {
       topEscaneadores: jest.fn(),
     };
     bitacoraRepository = { registrar: jest.fn(), findAll: jest.fn() };
-    usuarioRepository = {
-      findById: jest.fn(),
-      findByEmail: jest.fn(),
-      findAllByRol: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    };
 
-    useCase = new ValidarEntradaUseCase(
+    useCase = new ValidarSalidaUseCase(
       boletoRepository,
       ventaRepository,
       escaneoRepository,
       bitacoraRepository,
-      usuarioRepository,
     );
   });
 
@@ -94,19 +84,7 @@ describe('ValidarEntradaUseCase', () => {
     const resultado = await useCase.execute({ uuid: 'no-existe', token: TOKEN_PLANO }, CONTEXTO);
 
     expect(resultado.resultado).toBe(ResultadoEscaneo.INVALIDO);
-    expect(bitacoraRepository.registrar).toHaveBeenCalledTimes(1);
     expect(escaneoRepository.create).not.toHaveBeenCalled();
-  });
-
-  it('responde QR NO VALIDO cuando el token no coincide con el hash almacenado', async () => {
-    boletoRepository.findById.mockResolvedValue(crearBoleto());
-
-    const resultado = await useCase.execute({ uuid: 'boleto-1', token: 'token-incorrecto' }, CONTEXTO);
-
-    expect(resultado.resultado).toBe(ResultadoEscaneo.INVALIDO);
-    expect(escaneoRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ resultado: ResultadoEscaneo.INVALIDO }),
-    );
   });
 
   it('responde FRAUDE cuando el boleto esta en un estado terminal', async () => {
@@ -117,38 +95,18 @@ describe('ValidarEntradaUseCase', () => {
     expect(resultado.resultado).toBe(ResultadoEscaneo.FRAUDE);
   });
 
-  it('responde YA UTILIZADO cuando no queda cupo disponible', async () => {
-    const boleto = crearBoleto({ personasIngresadas: 2 });
-    boletoRepository.findById.mockResolvedValue(boleto);
-    escaneoRepository.primerIngresoDe.mockResolvedValue(null);
-
-    const resultado = await useCase.execute({ uuid: 'boleto-1', token: TOKEN_PLANO }, CONTEXTO);
-
-    expect(resultado.resultado).toBe(ResultadoEscaneo.YA_UTILIZADO);
-  });
-
-  it('registra el ingreso completo y responde VALIDO', async () => {
-    const boleto = crearBoleto();
-    boletoRepository.findById.mockResolvedValue(boleto);
-    boletoRepository.actualizarIngresoAtomico.mockResolvedValue(true);
-    ventaRepository.findById.mockResolvedValue(
-      new VentaEntity('venta-1', 'evento-1', 'Juan Perez', null, 2, null, 'admin-1', new Date()),
+  it('responde SIN_INGRESOS cuando nadie del boleto esta dentro', async () => {
+    boletoRepository.findById.mockResolvedValue(
+      crearBoleto({ personasIngresadas: 0, estado: EstadoBoleto.PENDIENTE }),
     );
 
     const resultado = await useCase.execute({ uuid: 'boleto-1', token: TOKEN_PLANO }, CONTEXTO);
 
-    expect(resultado.resultado).toBe(ResultadoEscaneo.VALIDO);
-    expect(resultado.boleto?.personasIngresadas).toBe(2);
-    expect(boletoRepository.actualizarIngresoAtomico).toHaveBeenCalledWith(
-      'boleto-1',
-      0,
-      2,
-      EstadoBoleto.UTILIZADO,
-    );
+    expect(resultado.resultado).toBe(ResultadoEscaneo.SIN_INGRESOS);
   });
 
-  it('registra un ingreso parcial cuando se especifica personasIngresan', async () => {
-    const boleto = crearBoleto();
+  it('registra la salida de una persona y libera cupo', async () => {
+    const boleto = crearBoleto({ personasIngresadas: 1 });
     boletoRepository.findById.mockResolvedValue(boleto);
     boletoRepository.actualizarIngresoAtomico.mockResolvedValue(true);
     ventaRepository.findById.mockResolvedValue(
@@ -156,22 +114,22 @@ describe('ValidarEntradaUseCase', () => {
     );
 
     const resultado = await useCase.execute(
-      { uuid: 'boleto-1', token: TOKEN_PLANO, personasIngresan: 1 },
+      { uuid: 'boleto-1', token: TOKEN_PLANO, personasSalen: 1 },
       CONTEXTO,
     );
 
-    expect(resultado.resultado).toBe(ResultadoEscaneo.VALIDO);
-    expect(resultado.boleto?.personasIngresadas).toBe(1);
+    expect(resultado.resultado).toBe(ResultadoEscaneo.SALIDA_VALIDA);
+    expect(resultado.boleto?.personasIngresadas).toBe(0);
     expect(boletoRepository.actualizarIngresoAtomico).toHaveBeenCalledWith(
       'boleto-1',
-      0,
       1,
-      EstadoBoleto.PARCIALMENTE_UTILIZADO,
+      0,
+      EstadoBoleto.PENDIENTE,
     );
   });
 
   it('reintenta el compare-and-swap si una escritura concurrente le gana la carrera', async () => {
-    const boletoInicial = crearBoleto();
+    const boletoInicial = crearBoleto({ personasIngresadas: 2, estado: EstadoBoleto.UTILIZADO });
     const boletoRecargado = crearBoleto({
       personasIngresadas: 1,
       estado: EstadoBoleto.PARCIALMENTE_UTILIZADO,
@@ -183,16 +141,16 @@ describe('ValidarEntradaUseCase', () => {
     );
 
     const resultado = await useCase.execute(
-      { uuid: 'boleto-1', token: TOKEN_PLANO, personasIngresan: 1 },
+      { uuid: 'boleto-1', token: TOKEN_PLANO, personasSalen: 1 },
       CONTEXTO,
     );
 
-    expect(resultado.resultado).toBe(ResultadoEscaneo.VALIDO);
+    expect(resultado.resultado).toBe(ResultadoEscaneo.SALIDA_VALIDA);
     expect(boletoRepository.actualizarIngresoAtomico).toHaveBeenCalledTimes(2);
   });
 
   it('lanza ConflictException si se agotan los reintentos por concurrencia', async () => {
-    const boleto = crearBoleto();
+    const boleto = crearBoleto({ personasIngresadas: 1 });
     boletoRepository.findById.mockResolvedValue(boleto);
     boletoRepository.actualizarIngresoAtomico.mockResolvedValue(false);
 

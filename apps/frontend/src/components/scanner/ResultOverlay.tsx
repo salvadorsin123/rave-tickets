@@ -7,6 +7,8 @@ const ESTILOS: Record<ResultadoEscaneo, { bg: string; titulo: string; icono: str
   [ResultadoEscaneo.YA_UTILIZADO]: { bg: 'bg-amber-600 shadow-neon-red', titulo: 'YA FUE UTILIZADA', icono: '❌' },
   [ResultadoEscaneo.INVALIDO]: { bg: 'bg-rose-600 shadow-neon-red', titulo: 'QR NO VÁLIDO', icono: '❌' },
   [ResultadoEscaneo.FRAUDE]: { bg: 'bg-rose-800 shadow-neon-red', titulo: 'BLOQUEADO — POSIBLE FRAUDE', icono: '🚫' },
+  [ResultadoEscaneo.SALIDA_VALIDA]: { bg: 'bg-cyan-600 shadow-neon-green', titulo: 'SALIDA REGISTRADA', icono: '🚪' },
+  [ResultadoEscaneo.SIN_INGRESOS]: { bg: 'bg-amber-600 shadow-neon-red', titulo: 'NADIE DENTRO', icono: '⚠️' },
 };
 
 export function ResultOverlay({ resultado }: { resultado: ResultadoValidacionDto }) {

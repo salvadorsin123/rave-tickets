@@ -15,6 +15,8 @@ const RESULTADO_ESCANEO_CLASSES: Record<ResultadoEscaneo, string> = {
   [ResultadoEscaneo.YA_UTILIZADO]: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
   [ResultadoEscaneo.INVALIDO]: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
   [ResultadoEscaneo.FRAUDE]: 'bg-rose-600/25 text-rose-200 border-rose-600/40',
+  [ResultadoEscaneo.SALIDA_VALIDA]: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  [ResultadoEscaneo.SIN_INGRESOS]: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
 };
 
 function BadgeBase({ className, children }: { className: string; children: React.ReactNode }) {

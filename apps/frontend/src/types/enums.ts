@@ -22,6 +22,13 @@ export enum ResultadoEscaneo {
   YA_UTILIZADO = 'YaUtilizado',
   INVALIDO = 'Invalido',
   FRAUDE = 'Fraude',
+  SALIDA_VALIDA = 'SalidaValida',
+  SIN_INGRESOS = 'SinIngresos',
+}
+
+export enum TipoEscaneo {
+  ENTRADA = 'Entrada',
+  SALIDA = 'Salida',
 }
 
 export enum TipoReporte {

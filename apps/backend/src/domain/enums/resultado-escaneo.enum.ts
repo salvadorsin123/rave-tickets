@@ -3,4 +3,6 @@ export enum ResultadoEscaneo {
   YA_UTILIZADO = 'YaUtilizado',
   INVALIDO = 'Invalido',
   FRAUDE = 'Fraude',
+  SALIDA_VALIDA = 'SalidaValida',
+  SIN_INGRESOS = 'SinIngresos',
 }

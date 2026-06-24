@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { ResultOverlay } from './ResultOverlay';
-import { ResultadoEscaneo } from '@/types/enums';
+import { ResultadoEscaneo, TipoEscaneo } from '@/types/enums';
 import type { ResultadoValidacionDto } from '@/types/models';
 
 const ELEMENTO_ID = 'rave-qr-reader';
 const MS_VOLVER_VALIDO = 1500;
 const MS_VOLVER_NO_VALIDO = 2800;
+
+const RESULTADOS_EXITOSOS = new Set([ResultadoEscaneo.VALIDO, ResultadoEscaneo.SALIDA_VALIDA]);
 
 interface UltimoEscaneo {
   folio: string;
@@ -19,9 +21,16 @@ interface UltimoEscaneo {
 export function ScannerView() {
   const lectorRef = useRef<Html5Qrcode | null>(null);
   const bloqueadoRef = useRef(false);
+  const modoRef = useRef<TipoEscaneo>(TipoEscaneo.ENTRADA);
+  const [modo, setModo] = useState<TipoEscaneo>(TipoEscaneo.ENTRADA);
   const [resultado, setResultado] = useState<ResultadoValidacionDto | null>(null);
   const [errorCamara, setErrorCamara] = useState<string | null>(null);
   const [ultimos, setUltimos] = useState<UltimoEscaneo[]>([]);
+
+  function cambiarModo(nuevoModo: TipoEscaneo) {
+    modoRef.current = nuevoModo;
+    setModo(nuevoModo);
+  }
 
   useEffect(() => {
     const lector = new Html5Qrcode(ELEMENTO_ID);
@@ -64,13 +73,15 @@ export function ScannerView() {
     }
 
     // Cada escaneo fisico representa a una sola persona cruzando la puerta. Si se omitiera
-    // este campo, el backend registraria de un solo golpe TODO el cupo disponible del
-    // boleto (pensado para marcar un boleto completo desde otra integracion), lo cual
-    // rompia el contador "X / Y personas" que se muestra en pantalla.
-    const payload = { ...qr, personasIngresan: 1 };
+    // este campo, el backend registraria de un solo golpe TODO el cupo disponible (o todas
+    // las personas dentro, en modo salida) del boleto, lo cual rompia el contador
+    // "X / Y personas" que se muestra en pantalla.
+    const esSalida = modoRef.current === TipoEscaneo.SALIDA;
+    const endpoint = esSalida ? 'escaneos/validar-salida' : 'escaneos/validar';
+    const payload = esSalida ? { ...qr, personasSalen: 1 } : { ...qr, personasIngresan: 1 };
 
     try {
-      const respuesta = await apiClient.post<ResultadoValidacionDto>('escaneos/validar', payload);
+      const respuesta = await apiClient.post<ResultadoValidacionDto>(endpoint, payload);
       mostrarResultado(respuesta);
     } catch (error) {
       const mensaje = error instanceof ApiError ? error.message : 'Error al validar el boleto';
@@ -81,13 +92,14 @@ export function ScannerView() {
   function mostrarResultado(dto: ResultadoValidacionDto) {
     setResultado(dto);
 
+    const exitoso = RESULTADOS_EXITOSOS.has(dto.resultado);
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(dto.resultado === ResultadoEscaneo.VALIDO ? 150 : [100, 80, 100]);
+      navigator.vibrate(exitoso ? 150 : [100, 80, 100]);
     }
 
     setUltimos((prev) => [{ folio: dto.boleto?.folio ?? '—', resultado: dto.resultado }, ...prev].slice(0, 5));
 
-    const espera = dto.resultado === ResultadoEscaneo.VALIDO ? MS_VOLVER_VALIDO : MS_VOLVER_NO_VALIDO;
+    const espera = exitoso ? MS_VOLVER_VALIDO : MS_VOLVER_NO_VALIDO;
     setTimeout(() => {
       setResultado(null);
       bloqueadoRef.current = false;
@@ -97,6 +109,27 @@ export function ScannerView() {
   return (
     <div className="relative flex flex-col items-center gap-4 p-4">
       <h1 className="text-sm font-medium text-base-300">Escaneando…</h1>
+
+      <div className="flex w-full max-w-sm overflow-hidden rounded-full border border-base-700 bg-base-900/80 p-1">
+        <button
+          type="button"
+          onClick={() => cambiarModo(TipoEscaneo.ENTRADA)}
+          className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
+            modo === TipoEscaneo.ENTRADA ? 'bg-emerald-600 text-white' : 'text-base-400'
+          }`}
+        >
+          Entrada
+        </button>
+        <button
+          type="button"
+          onClick={() => cambiarModo(TipoEscaneo.SALIDA)}
+          className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
+            modo === TipoEscaneo.SALIDA ? 'bg-cyan-600 text-white' : 'text-base-400'
+          }`}
+        >
+          Salida
+        </button>
+      </div>
 
       <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-base-700 bg-black">
         <div id={ELEMENTO_ID} className="w-full" />
@@ -110,7 +143,7 @@ export function ScannerView() {
           <ul className="flex flex-col gap-1 text-sm">
             {ultimos.map((u, i) => (
               <li key={i} className="flex items-center gap-2 text-base-300">
-                <span>{u.resultado === ResultadoEscaneo.VALIDO ? '✅' : '❌'}</span>
+                <span>{RESULTADOS_EXITOSOS.has(u.resultado) ? '✅' : '❌'}</span>
                 <span>{u.folio}</span>
               </li>
             ))}

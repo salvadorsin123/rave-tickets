@@ -15,6 +15,20 @@ export class ValidarEntradaDto {
   personasIngresan?: number;
 }
 
+export class ValidarSalidaDto {
+  @IsUUID()
+  uuid!: string;
+
+  @IsString()
+  token!: string;
+
+  /** Si se omite, se registra la salida de todas las personas actualmente dentro del boleto. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  personasSalen?: number;
+}
+
 export interface ResultadoValidacionDto {
   resultado: ResultadoEscaneo;
   mensaje: string;

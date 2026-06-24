@@ -41,6 +41,26 @@ export class BoletoEntity {
     this.updatedAt = new Date();
   }
 
+  puedeRegistrarSalida(): boolean {
+    return !ESTADOS_TERMINALES.has(this.estado) && this.personasIngresadas > 0;
+  }
+
+  registrarSalida(cantidad: number): void {
+    if (cantidad <= 0) {
+      throw new Error('La cantidad de personas a salir debe ser mayor a 0');
+    }
+    if (!this.puedeRegistrarSalida()) {
+      throw new Error('El boleto no admite salidas en su estado actual');
+    }
+    if (cantidad > this.personasIngresadas) {
+      throw new Error('No puede salir mas gente de la que esta registrada como dentro del boleto');
+    }
+    this.personasIngresadas -= cantidad;
+    this.estado =
+      this.personasIngresadas === 0 ? EstadoBoleto.PENDIENTE : EstadoBoleto.PARCIALMENTE_UTILIZADO;
+    this.updatedAt = new Date();
+  }
+
   cancelar(): void {
     this.asegurarNoTerminal();
     this.estado = EstadoBoleto.CANCELADO;
