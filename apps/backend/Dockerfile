@@ -3,7 +3,9 @@
 # ---- deps: instala TODAS las dependencias (incluye devDependencies, necesarias para el build) ----
 FROM node:20-bookworm-slim AS deps
 # El motor de Prisma (schema/query engine) necesita libssl/openssl; "bookworm-slim" no lo trae.
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+# ca-certificates es necesario para validar el certificado TLS de Azure SQL al conectar
+# (sin esto, prisma falla con P1011 "unable to get local issuer certificate").
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -18,7 +20,7 @@ RUN npm run build
 
 # ---- runtime: imagen de produccion, solo dependencias de produccion + artefactos compilados ----
 FROM node:20-bookworm-slim AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /app
 
