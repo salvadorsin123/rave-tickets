@@ -1,0 +1,90 @@
+# Stack de desarrollo/demo local. Para produccion, el despliegue real ocurre en Azure
+# (App Service + Azure SQL + Blob Storage) via .github/workflows/deploy.yml — ver
+# docs/07-despliegue-azure.md. Este compose existe para correr todo el sistema en una
+# laptop sin depender de servicios de Azure.
+#
+# Uso:
+#   cd infra
+#   docker compose up --build
+#   (primer arranque: el backend corre `prisma db push` automaticamente, ver mas abajo)
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:-R4ve!DevPassw0rd}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    # --skipApiVersionCheck: el SDK @azure/storage-blob instalado envia una version de API
+    # de servicio mas nueva que la que esta imagen de Azurite reconoce. Solo afecta al
+    # emulador local; Azure Blob Storage real siempre soporta la version mas reciente.
+    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck"
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite-data:/data
+
+  backend:
+    build:
+      context: ../apps/backend
+    depends_on:
+      db:
+        condition: service_healthy
+      azurite:
+        condition: service_started
+    environment:
+      DATABASE_URL: "sqlserver://db:1433;database=RaveDb;user=sa;password=${DB_SA_PASSWORD:-R4ve!DevPassw0rd};encrypt=true;trustServerCertificate=true"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-cambiar}
+      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-cambiar}
+      JWT_REFRESH_EXPIRES_IN: "7d"
+      PORT: "3001"
+      CORS_ORIGIN: "http://localhost:3000"
+      AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
+      AZURE_STORAGE_CONTAINER: "boletos-pdf"
+      THROTTLE_TTL: "60"
+      THROTTLE_LIMIT: "100"
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@rave.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-CambiameYa123!}
+    ports:
+      - "3001:3001"
+    # Override del entrypoint de la imagen: todavia no hay migraciones commiteadas en
+    # prisma/migrations (requieren generarse una vez con `prisma migrate dev` contra una
+    # base real, ver docs/07-despliegue-azure.md). Para desarrollo local, `db push`
+    # sincroniza el schema directamente sin necesitar archivos de migracion.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        npx prisma db push --skip-generate &&
+        npx prisma db seed &&
+        node dist/main.js
+
+  frontend:
+    build:
+      context: ../apps/frontend
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: "http://backend:3001"
+      ACCESS_TOKEN_MAX_AGE_SECONDS: "900"
+      REFRESH_TOKEN_MAX_AGE_SECONDS: "604800"
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+
+volumes:
+  mssql-data:
+  azurite-data:

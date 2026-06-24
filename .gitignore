@@ -1,0 +1,23 @@
+# Monorepo root — cada app tiene ademas su propio .gitignore mas especifico.
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+
+# Secretos de despliegue (plantillas .example si quedan versionadas)
+infra/azure/bicep/main.parameters.json
+infra/.env
+
+# Editores / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Configuracion local de Claude Code (especifica de esta maquina/usuario)
+.claude/

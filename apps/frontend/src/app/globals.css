@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+html,
+body {
+  background-color: #07050d;
+  color: #ece8f7;
+}
+
+* {
+  scrollbar-color: #33254f #0d0a17;
+  scrollbar-width: thin;
+}
+
+.bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(168, 85, 247, 0.12) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 1.8s ease-in-out infinite;
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+
+# tsc compila prisma/seed.ts en sitio (build:seed) cuando se corre localmente sin limpiar
+prisma/seed.js
+prisma/seed.js.map
+prisma/seed.d.ts

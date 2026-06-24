@@ -1,0 +1,104 @@
+name: Deploy a Azure
+
+# Solo despliega despues de que el workflow CI termine en exitoso sobre main — encadena
+# Build -> Test (ci.yml) -> Deploy (este archivo) sin duplicar los pasos de verificacion.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  BACKEND_APP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+  FRONTEND_APP_NAME: ${{ vars.AZURE_FRONTEND_APP_NAME }}
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+jobs:
+  build-and-push:
+    name: Build y push de imagenes a ACR
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      image-tag: ${{ steps.vars.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Definir tag de imagen
+        id: vars
+        run: echo "image_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Login en Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login en Azure Container Registry
+        run: az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build y push — backend
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/backend
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/rave-backend:${{ steps.vars.outputs.image_tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/rave-backend:latest
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rave-backend:latest
+          cache-to: type=inline
+
+      - name: Build y push — frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/frontend
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/rave-frontend:${{ steps.vars.outputs.image_tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/rave-frontend:latest
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rave-frontend:latest
+          cache-to: type=inline
+
+  deploy:
+    name: Deploy a App Service
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Login en Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # El entrypoint de la imagen backend corre `prisma migrate deploy` automaticamente
+      # al arrancar el contenedor, asi que desplegar la imagen nueva ya aplica las
+      # migraciones pendientes — no se necesita un paso de migracion aparte.
+      - name: Deploy — backend
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.BACKEND_APP_NAME }}
+          images: ${{ env.ACR_LOGIN_SERVER }}/rave-backend:${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Deploy — frontend
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.FRONTEND_APP_NAME }}
+          images: ${{ env.ACR_LOGIN_SERVER }}/rave-frontend:${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Verificar salud del backend
+        run: |
+          sleep 20
+          curl --fail "https://${BACKEND_APP_NAME}.azurewebsites.net/docs" || (echo "Backend no respondio" && exit 1)

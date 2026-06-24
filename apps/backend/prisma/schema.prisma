@@ -1,0 +1,170 @@
+// Esquema Prisma — Azure SQL Database
+// Ver docs/03-modelo-de-datos.md para el diseno completo (ER, indices, restricciones)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Rol {
+  id       String       @id @default(uuid()) @db.UniqueIdentifier
+  nombre   String       @unique @db.VarChar(50)
+  usuarios Usuario[]
+  permisos RolPermiso[]
+
+  @@map("Rol")
+}
+
+model Permiso {
+  id          String       @id @default(uuid()) @db.UniqueIdentifier
+  nombre      String       @unique @db.VarChar(100)
+  descripcion String?      @db.VarChar(255)
+  roles       RolPermiso[]
+
+  @@map("Permiso")
+}
+
+model RolPermiso {
+  rolId     String  @db.UniqueIdentifier
+  permisoId String  @db.UniqueIdentifier
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  permiso   Permiso @relation(fields: [permisoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([rolId, permisoId])
+  @@map("RolPermiso")
+}
+
+model Usuario {
+  id           String   @id @default(uuid()) @db.UniqueIdentifier
+  nombre       String   @db.VarChar(150)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @db.VarChar(255)
+  rolId        String   @db.UniqueIdentifier
+  rol          Rol      @relation(fields: [rolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  eventosCreados     Evento[]            @relation("EventoCreadoPor")
+  ventasRegistradas  Venta[]             @relation("VentaRegistradaPor")
+  escaneosRealizados Escaneo[]           @relation("EscaneoPorEscaneador")
+  accionesAuditoria  BitacoraAuditoria[] @relation("BitacoraUsuario")
+
+  @@index([rolId])
+  @@map("Usuario")
+}
+
+model Evento {
+  id          String   @id @default(uuid()) @db.UniqueIdentifier
+  nombre      String   @db.VarChar(150)
+  descripcion String?  @db.VarChar(1000)
+  fecha       DateTime
+  lugar       String?  @db.VarChar(255)
+  logoUrl     String?  @db.VarChar(500)
+  imagenFondoUrl String? @db.VarChar(500)
+  estado      String   @db.VarChar(20)
+  precioBase  Decimal? @db.Decimal(10, 2)
+  creadoPorId String   @db.UniqueIdentifier
+  creadoPor   Usuario  @relation("EventoCreadoPor", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ventas          Venta[]
+  configuraciones Configuracion[]
+  boletos         Boleto[]
+
+  @@index([estado])
+  @@map("Evento")
+}
+
+model Venta {
+  id               String   @id @default(uuid()) @db.UniqueIdentifier
+  eventoId         String   @db.UniqueIdentifier
+  evento           Evento   @relation(fields: [eventoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nombreComprador  String   @db.VarChar(150)
+  email            String?  @db.VarChar(255)
+  cantidadPersonas Int
+  montoTotal       Decimal? @db.Decimal(10, 2)
+  registradoPorId  String   @db.UniqueIdentifier
+  registradoPor    Usuario  @relation("VentaRegistradaPor", fields: [registradoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fechaCompra      DateTime @default(now())
+
+  boleto Boleto?
+
+  @@index([eventoId])
+  @@index([fechaCompra])
+  @@map("Venta")
+}
+
+model Boleto {
+  id                  String   @id @default(uuid()) @db.UniqueIdentifier
+  folio               String   @unique @db.VarChar(30)
+  ventaId             String   @unique @db.UniqueIdentifier
+  venta               Venta    @relation(fields: [ventaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  eventoId            String   @db.UniqueIdentifier
+  evento              Evento   @relation(fields: [eventoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tokenValidacionHash String   @unique @db.VarChar(255)
+  personasCompradas   Int
+  personasIngresadas  Int      @default(0)
+  estado              String   @db.VarChar(30)
+  pdfUrl              String?  @db.VarChar(500)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  escaneos Escaneo[]
+
+  @@index([eventoId])
+  @@index([estado])
+  @@map("Boleto")
+}
+
+model Escaneo {
+  id                              String   @id @default(uuid()) @db.UniqueIdentifier
+  boletoId                        String   @db.UniqueIdentifier
+  boleto                          Boleto   @relation(fields: [boletoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  escaneadorId                    String   @db.UniqueIdentifier
+  escaneador                      Usuario  @relation("EscaneoPorEscaneador", fields: [escaneadorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  personasIngresadasEnEsteEscaneo Int
+  resultado                       String   @db.VarChar(30)
+  fechaHora                       DateTime @default(now())
+  ipAddress                       String?  @db.VarChar(45)
+  deviceInfo                      String?  @db.VarChar(255)
+
+  @@index([boletoId])
+  @@index([escaneadorId])
+  @@index([fechaHora])
+  @@map("Escaneo")
+}
+
+model Configuracion {
+  id       String  @id @default(uuid()) @db.UniqueIdentifier
+  eventoId String? @db.UniqueIdentifier
+  evento   Evento? @relation(fields: [eventoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  clave    String  @db.VarChar(100)
+  valor    String? @db.VarChar(1000)
+
+  // Nota: en SQL Server una restriccion UNIQUE permite multiples NULL en eventoId;
+  // la unicidad para configuracion global (eventoId = NULL) se valida en la capa de aplicacion.
+  @@unique([eventoId, clave])
+  @@map("Configuracion")
+}
+
+model BitacoraAuditoria {
+  id              String   @id @default(uuid()) @db.UniqueIdentifier
+  usuarioId       String?  @db.UniqueIdentifier
+  usuario         Usuario? @relation("BitacoraUsuario", fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  accion          String   @db.VarChar(100)
+  entidadAfectada String   @db.VarChar(50)
+  entidadId       String?  @db.UniqueIdentifier
+  detalles        String?  @db.NVarChar(Max)
+  fechaHora       DateTime @default(now())
+  ipAddress       String?  @db.VarChar(45)
+
+  @@index([entidadAfectada, entidadId])
+  @@index([fechaHora])
+  @@map("BitacoraAuditoria")
+}
