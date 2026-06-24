@@ -27,7 +27,7 @@ export function Modal({ open, onClose, title, children, footer, widthClassName =
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div
-        className={`w-full ${widthClassName} rounded-xl border border-base-700 bg-base-900 shadow-neon`}
+        className={`flex max-h-[90vh] w-full ${widthClassName} flex-col rounded-xl border border-base-700 bg-base-900 shadow-neon`}
         role="dialog"
         aria-modal="true"
       >
@@ -41,7 +41,7 @@ export function Modal({ open, onClose, title, children, footer, widthClassName =
             ✕
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-base-700 px-5 py-4">{footer}</div>}
       </div>
     </div>,
