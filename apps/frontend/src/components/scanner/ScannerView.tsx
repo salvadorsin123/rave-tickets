@@ -55,13 +55,19 @@ export function ScannerView() {
     if (bloqueadoRef.current) return;
     bloqueadoRef.current = true;
 
-    let payload: { uuid: string; token: string };
+    let qr: { uuid: string; token: string };
     try {
-      payload = JSON.parse(texto);
+      qr = JSON.parse(texto);
     } catch {
       mostrarResultado({ resultado: ResultadoEscaneo.INVALIDO, mensaje: 'QR NO VALIDO' });
       return;
     }
+
+    // Cada escaneo fisico representa a una sola persona cruzando la puerta. Si se omitiera
+    // este campo, el backend registraria de un solo golpe TODO el cupo disponible del
+    // boleto (pensado para marcar un boleto completo desde otra integracion), lo cual
+    // rompia el contador "X / Y personas" que se muestra en pantalla.
+    const payload = { ...qr, personasIngresan: 1 };
 
     try {
       const respuesta = await apiClient.post<ResultadoValidacionDto>('escaneos/validar', payload);
