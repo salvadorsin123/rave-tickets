@@ -38,14 +38,19 @@ describe('CambiarRolUsuarioUseCase', () => {
 
   it('lanza NotFoundException si el usuario no existe', async () => {
     usuarioRepository.findById.mockResolvedValue(null);
-    await expect(useCase.execute('x', RolNombre.ADMIN, 'actor-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      useCase.execute('x', RolNombre.ADMIN, { ejecutadoPorId: 'actor-1', ipAddress: null }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('no hace nada si el rol nuevo es igual al actual', async () => {
     const objetivo = crearUsuario('admin-1', RolNombre.ADMIN);
     usuarioRepository.findById.mockResolvedValue(objetivo);
 
-    const resultado = await useCase.execute('admin-1', RolNombre.ADMIN, 'actor-1');
+    const resultado = await useCase.execute('admin-1', RolNombre.ADMIN, {
+      ejecutadoPorId: 'actor-1',
+      ipAddress: null,
+    });
 
     expect(resultado).toBe(objetivo);
     expect(usuarioRepository.cambiarRol).not.toHaveBeenCalled();
@@ -57,7 +62,7 @@ describe('CambiarRolUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.cambiarRol.mockResolvedValue(crearUsuario('admin-1', RolNombre.SUPER_ADMIN));
 
-    await useCase.execute('admin-1', RolNombre.SUPER_ADMIN, 'actor-1');
+    await useCase.execute('admin-1', RolNombre.SUPER_ADMIN, { ejecutadoPorId: 'actor-1', ipAddress: null });
 
     expect(usuarioRepository.cambiarRol).toHaveBeenCalledWith('admin-1', RolNombre.SUPER_ADMIN);
     expect(bitacoraRepository.registrar).toHaveBeenCalledWith(
@@ -75,9 +80,9 @@ describe('CambiarRolUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo]);
 
-    await expect(useCase.execute('super-1', RolNombre.ADMIN, 'actor-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      useCase.execute('super-1', RolNombre.ADMIN, { ejecutadoPorId: 'actor-1', ipAddress: null }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(usuarioRepository.cambiarRol).not.toHaveBeenCalled();
   });
 
@@ -90,7 +95,7 @@ describe('CambiarRolUsuarioUseCase', () => {
     ]);
     usuarioRepository.cambiarRol.mockResolvedValue(crearUsuario('super-2', RolNombre.ADMIN));
 
-    await useCase.execute('super-2', RolNombre.ADMIN, 'actor-1');
+    await useCase.execute('super-2', RolNombre.ADMIN, { ejecutadoPorId: 'actor-1', ipAddress: null });
 
     expect(usuarioRepository.cambiarRol).toHaveBeenCalledWith('super-2', RolNombre.ADMIN);
   });
@@ -100,9 +105,9 @@ describe('CambiarRolUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo]);
 
-    await expect(useCase.execute('admin-1', RolNombre.ESCANEADOR, 'actor-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      useCase.execute('admin-1', RolNombre.ESCANEADOR, { ejecutadoPorId: 'actor-1', ipAddress: null }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('no exige el invariante de admin si el usuario esta inactivo', async () => {
@@ -110,7 +115,7 @@ describe('CambiarRolUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.cambiarRol.mockResolvedValue(crearUsuario('admin-1', RolNombre.ESCANEADOR, false));
 
-    await useCase.execute('admin-1', RolNombre.ESCANEADOR, 'actor-1');
+    await useCase.execute('admin-1', RolNombre.ESCANEADOR, { ejecutadoPorId: 'actor-1', ipAddress: null });
 
     expect(usuarioRepository.findAllByRol).not.toHaveBeenCalled();
     expect(usuarioRepository.cambiarRol).toHaveBeenCalledWith('admin-1', RolNombre.ESCANEADOR);

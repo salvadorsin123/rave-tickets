@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import {
   BITACORA_REPOSITORY,
   BitacoraRepositoryPort,
+  ContextoAccion,
   USUARIO_REPOSITORY,
   UsuarioRepositoryPort,
 } from '@application/ports/repositories.port';
@@ -18,7 +19,7 @@ export class CrearAdminUseCase {
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(dto: CrearAdminDto, ejecutadoPorId: string): Promise<UsuarioEntity> {
+  async execute(dto: CrearAdminDto, contexto: ContextoAccion): Promise<UsuarioEntity> {
     const existente = await this.usuarioRepository.findByEmail(dto.email);
     if (existente) {
       throw new ConflictException('Ya existe un usuario con ese correo');
@@ -32,12 +33,12 @@ export class CrearAdminUseCase {
       rolNombre: RolNombre.ADMIN,
     });
     await this.bitacoraRepository.registrar({
-      usuarioId: ejecutadoPorId,
+      usuarioId: contexto.ejecutadoPorId,
       accion: 'ADMIN_CREADO',
       entidadAfectada: 'Usuario',
       entidadId: creado.id,
       detalles: null,
-      ipAddress: null,
+      ipAddress: contexto.ipAddress,
     });
     return creado;
   }

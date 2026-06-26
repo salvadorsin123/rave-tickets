@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BitacoraAuditoria as BitacoraRow } from '@prisma/client';
+import { BitacoraAuditoria as BitacoraRow, Usuario as UsuarioRow } from '@prisma/client';
 import {
   BitacoraRepositoryPort,
   FiltroBitacora,
@@ -37,11 +37,14 @@ export class BitacoraPrismaRepository implements BitacoraRepositoryPort {
         },
       },
       orderBy: { fechaHora: 'desc' },
+      include: { usuario: { select: { nombre: true, email: true } } },
     });
     return rows.map((row) => this.toDomain(row));
   }
 
-  private toDomain(row: BitacoraRow): BitacoraAuditoriaEntity {
+  private toDomain(
+    row: BitacoraRow & { usuario: Pick<UsuarioRow, 'nombre' | 'email'> | null },
+  ): BitacoraAuditoriaEntity {
     return new BitacoraAuditoriaEntity(
       row.id,
       row.usuarioId,
@@ -51,6 +54,8 @@ export class BitacoraPrismaRepository implements BitacoraRepositoryPort {
       row.detalles,
       row.fechaHora,
       row.ipAddress,
+      row.usuario?.nombre ?? null,
+      row.usuario?.email ?? null,
     );
   }
 }

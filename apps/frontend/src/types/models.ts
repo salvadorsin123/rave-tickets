@@ -78,6 +78,8 @@ export interface BitacoraAuditoriaEntity {
   detalles: string | null;
   fechaHora: string;
   ipAddress: string | null;
+  usuarioNombre: string | null;
+  usuarioEmail: string | null;
 }
 
 export interface ResultadoValidacionDto {

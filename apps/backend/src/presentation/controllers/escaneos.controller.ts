@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '@presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '@presentation/guards/roles.guard';
 import { Roles } from '@presentation/decorators/roles.decorator';
 import { CurrentUser } from '@presentation/decorators/current-user.decorator';
+import { SinAuditoriaGenerica } from '@presentation/decorators/sin-auditoria-generica.decorator';
 import { TokenPayload } from '@application/ports/infrastructure.port';
 
 class ConsultarEscaneosQueryDto {
@@ -37,6 +38,7 @@ export class EscaneosController {
   @Roles(RolNombre.ESCANEADOR, RolNombre.ADMIN)
   @Post('validar')
   @HttpCode(HttpStatus.OK)
+  @SinAuditoriaGenerica()
   async validar(
     @Body() dto: ValidarEntradaDto,
     @CurrentUser() usuario: TokenPayload,
@@ -53,6 +55,7 @@ export class EscaneosController {
   @Roles(RolNombre.ESCANEADOR, RolNombre.ADMIN)
   @Post('validar-salida')
   @HttpCode(HttpStatus.OK)
+  @SinAuditoriaGenerica()
   async validarSalida(
     @Body() dto: ValidarSalidaDto,
     @CurrentUser() usuario: TokenPayload,

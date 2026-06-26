@@ -3,6 +3,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BITACORA_REPOSITORY,
   BitacoraRepositoryPort,
+  ContextoAccion,
   USUARIO_REPOSITORY,
   UsuarioRepositoryPort,
 } from '@application/ports/repositories.port';
@@ -17,7 +18,7 @@ export class RestablecerPasswordUseCase {
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(usuarioId: string, ejecutadoPorId: string): Promise<RestablecerPasswordResponseDto> {
+  async execute(usuarioId: string, contexto: ContextoAccion): Promise<RestablecerPasswordResponseDto> {
     const usuario = await this.usuarioRepository.findById(usuarioId);
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -27,12 +28,12 @@ export class RestablecerPasswordUseCase {
     usuario.cambiarPasswordHash(await this.passwordHasher.hash(passwordTemporal));
     await this.usuarioRepository.update(usuario);
     await this.bitacoraRepository.registrar({
-      usuarioId: ejecutadoPorId,
+      usuarioId: contexto.ejecutadoPorId,
       accion: 'ADMIN_PASSWORD_RESTABLECIDO',
       entidadAfectada: 'Usuario',
       entidadId: usuario.id,
       detalles: null,
-      ipAddress: null,
+      ipAddress: contexto.ipAddress,
     });
 
     return { passwordTemporal };

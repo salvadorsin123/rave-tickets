@@ -62,6 +62,7 @@ export function AuditoriaView() {
             <thead>
               <tr className="border-b border-base-700 text-left text-xs uppercase text-base-400">
                 <th className="px-4 py-3">Fecha y hora</th>
+                <th className="px-4 py-3">Usuario</th>
                 <th className="px-4 py-3">Acción</th>
                 <th className="px-4 py-3">Entidad</th>
                 <th className="px-4 py-3">IP</th>
@@ -76,6 +77,9 @@ export function AuditoriaView() {
                       timeStyle: 'medium',
                       timeZone: ZONA_HORARIA_MX,
                     })}
+                  </td>
+                  <td className="px-4 py-3 text-base-300">
+                    {registro.usuarioNombre ?? registro.usuarioEmail ?? 'Sistema'}
                   </td>
                   <td className="px-4 py-3 font-medium text-base-100">{registro.accion}</td>
                   <td className="px-4 py-3 text-base-300">

@@ -15,7 +15,11 @@ function formatoMoneda(valor: number): string {
   );
 }
 
-export function DashboardView() {
+interface DashboardViewProps {
+  esSuperAdmin: boolean;
+}
+
+export function DashboardView({ esSuperAdmin }: DashboardViewProps) {
   const { eventoId } = useEventoContext();
   const [stats, setStats] = useState<EstadisticasDashboard | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -119,27 +123,29 @@ export function DashboardView() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-base-700 bg-base-900/80 p-5">
-        <h3 className="mb-4 text-sm font-semibold text-base-200">Actividad reciente</h3>
-        {stats.actividadReciente.length === 0 ? (
-          <EmptyState message="Sin actividad reciente." />
-        ) : (
-          <ul className="flex flex-col gap-2 text-sm">
-            {stats.actividadReciente.map((a, i) => (
-              <li key={i} className="flex gap-3 text-base-300">
-                <span className="shrink-0 text-base-500">
-                  {new Date(a.fechaHora).toLocaleTimeString('es-MX', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    timeZone: ZONA_HORARIA_MX,
-                  })}
-                </span>
-                <span>{a.descripcion}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {esSuperAdmin && (
+        <div className="rounded-xl border border-base-700 bg-base-900/80 p-5">
+          <h3 className="mb-4 text-sm font-semibold text-base-200">Actividad reciente</h3>
+          {stats.actividadReciente.length === 0 ? (
+            <EmptyState message="Sin actividad reciente." />
+          ) : (
+            <ul className="flex flex-col gap-2 text-sm">
+              {stats.actividadReciente.map((a, i) => (
+                <li key={i} className="flex gap-3 text-base-300">
+                  <span className="shrink-0 text-base-500">
+                    {new Date(a.fechaHora).toLocaleTimeString('es-MX', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: ZONA_HORARIA_MX,
+                    })}
+                  </span>
+                  <span>{a.descripcion}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

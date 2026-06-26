@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '@presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '@presentation/guards/roles.guard';
 import { Roles } from '@presentation/decorators/roles.decorator';
 import { CurrentUser } from '@presentation/decorators/current-user.decorator';
+import { SinAuditoriaGenerica } from '@presentation/decorators/sin-auditoria-generica.decorator';
 import { TokenPayload } from '@application/ports/infrastructure.port';
 
 interface BoletoResponse {
@@ -68,18 +69,21 @@ export class BoletosController {
   }
 
   @Patch(':id/cancelar')
+  @SinAuditoriaGenerica()
   async cancelar(@Param('id') id: string, @CurrentUser() usuario: TokenPayload): Promise<BoletoResponse> {
     const boleto = await this.cancelarBoletoUseCase.execute(id, usuario.sub);
     return aBoletoResponse(boleto);
   }
 
   @Patch(':id/reembolsar')
+  @SinAuditoriaGenerica()
   async reembolsar(@Param('id') id: string, @CurrentUser() usuario: TokenPayload): Promise<BoletoResponse> {
     const boleto = await this.reembolsarBoletoUseCase.execute(id, usuario.sub);
     return aBoletoResponse(boleto);
   }
 
   @Patch(':id/bloquear-fraude')
+  @SinAuditoriaGenerica()
   async bloquearFraude(
     @Param('id') id: string,
     @Body() dto: BloquearFraudeDto,

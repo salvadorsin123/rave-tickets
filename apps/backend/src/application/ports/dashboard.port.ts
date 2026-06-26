@@ -39,6 +39,11 @@ export interface EstadisticasDashboard {
   actividadReciente: ActividadReciente[];
 }
 
+export interface FiltroEstadisticas {
+  eventoId?: string;
+  esSuperAdmin: boolean;
+}
+
 export interface DashboardQueryPort {
-  obtenerEstadisticas(eventoId?: string): Promise<EstadisticasDashboard>;
+  obtenerEstadisticas(filtro: FiltroEstadisticas): Promise<EstadisticasDashboard>;
 }

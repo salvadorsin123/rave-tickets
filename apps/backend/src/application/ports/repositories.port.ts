@@ -152,6 +152,11 @@ export interface RegistrarBitacoraData {
   ipAddress: string | null;
 }
 
+export interface ContextoAccion {
+  ejecutadoPorId: string;
+  ipAddress: string | null;
+}
+
 export interface FiltroBitacora {
   entidadAfectada?: string;
   entidadId?: string;

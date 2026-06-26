@@ -1,5 +1,17 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import {
   CambiarRolDto,
   CrearAdminDto,
@@ -20,6 +32,7 @@ import { JwtAuthGuard } from '@presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '@presentation/guards/roles.guard';
 import { Roles } from '@presentation/decorators/roles.decorator';
 import { CurrentUser } from '@presentation/decorators/current-user.decorator';
+import { SinAuditoriaGenerica } from '@presentation/decorators/sin-auditoria-generica.decorator';
 
 interface UsuarioResponse {
   id: string;
@@ -62,18 +75,31 @@ export class AdministradoresController {
   }
 
   @Post()
-  async crear(@Body() dto: CrearAdminDto, @CurrentUser() usuario: TokenPayload): Promise<UsuarioResponse> {
-    const creado = await this.crearAdminUseCase.execute(dto, usuario.sub);
+  @SinAuditoriaGenerica()
+  async crear(
+    @Body() dto: CrearAdminDto,
+    @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
+  ): Promise<UsuarioResponse> {
+    const creado = await this.crearAdminUseCase.execute(dto, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
     return aUsuarioResponse(creado);
   }
 
   @Patch(':id')
+  @SinAuditoriaGenerica()
   async editar(
     @Param('id') id: string,
     @Body() dto: EditarUsuarioDto,
     @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
   ): Promise<UsuarioResponse> {
-    const actualizado = await this.editarUsuarioUseCase.execute(id, dto, usuario.sub);
+    const actualizado = await this.editarUsuarioUseCase.execute(id, dto, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
     return aUsuarioResponse(actualizado);
   }
 
@@ -82,34 +108,60 @@ export class AdministradoresController {
   // (solo el caso 204 se trata como "sin body" en apiClient) y lanza un error falso.
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(RolNombre.SUPER_ADMIN)
-  async desactivar(@Param('id') id: string, @CurrentUser() usuario: TokenPayload): Promise<void> {
-    await this.desactivarUsuarioUseCase.execute(id, usuario.sub);
+  @SinAuditoriaGenerica()
+  async desactivar(
+    @Param('id') id: string,
+    @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.desactivarUsuarioUseCase.execute(id, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
   }
 
   @Patch(':id/reactivar')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(RolNombre.SUPER_ADMIN)
-  async reactivar(@Param('id') id: string, @CurrentUser() usuario: TokenPayload): Promise<void> {
-    await this.reactivarUsuarioUseCase.execute(id, usuario.sub);
+  @SinAuditoriaGenerica()
+  async reactivar(
+    @Param('id') id: string,
+    @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.reactivarUsuarioUseCase.execute(id, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
   }
 
   @Patch(':id/cambiar-rol')
   @Roles(RolNombre.SUPER_ADMIN)
+  @SinAuditoriaGenerica()
   async cambiarRol(
     @Param('id') id: string,
     @Body() dto: CambiarRolDto,
     @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
   ): Promise<UsuarioResponse> {
-    const actualizado = await this.cambiarRolUsuarioUseCase.execute(id, dto.rol, usuario.sub);
+    const actualizado = await this.cambiarRolUsuarioUseCase.execute(id, dto.rol, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
     return aUsuarioResponse(actualizado);
   }
 
   @Patch(':id/restablecer-password')
   @Roles(RolNombre.SUPER_ADMIN)
+  @SinAuditoriaGenerica()
   async restablecerPassword(
     @Param('id') id: string,
     @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
   ): Promise<RestablecerPasswordResponseDto> {
-    return this.restablecerPasswordUseCase.execute(id, usuario.sub);
+    return this.restablecerPasswordUseCase.execute(id, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
   }
 }

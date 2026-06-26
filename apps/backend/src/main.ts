@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -7,7 +8,12 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from '@presentation/filters/http-exception.filter';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Confia solo en el primer salto (el proxy de Azure App Service) para que
+  // request.ip resuelva la IP real del cliente desde X-Forwarded-For en vez
+  // de la IP interna del balanceador. 'true' confiaria en toda la cadena,
+  // lo que un cliente podria falsificar.
+  app.set('trust proxy', 1);
   const configService = app.get(ConfigService);
 
   app.use(helmet());

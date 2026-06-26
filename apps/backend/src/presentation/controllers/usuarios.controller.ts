@@ -1,5 +1,17 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import {
   CrearEscaneadorDto,
   EditarUsuarioDto,
@@ -18,6 +30,7 @@ import { JwtAuthGuard } from '@presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '@presentation/guards/roles.guard';
 import { Roles } from '@presentation/decorators/roles.decorator';
 import { CurrentUser } from '@presentation/decorators/current-user.decorator';
+import { SinAuditoriaGenerica } from '@presentation/decorators/sin-auditoria-generica.decorator';
 
 interface UsuarioResponse {
   id: string;
@@ -65,12 +78,17 @@ export class UsuariosController {
   }
 
   @Patch(':id')
+  @SinAuditoriaGenerica()
   async editar(
     @Param('id') id: string,
     @Body() dto: EditarUsuarioDto,
     @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
   ): Promise<UsuarioResponse> {
-    const actualizado = await this.editarUsuarioUseCase.execute(id, dto, usuario.sub);
+    const actualizado = await this.editarUsuarioUseCase.execute(id, dto, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
     return aUsuarioResponse(actualizado);
   }
 
@@ -78,16 +96,29 @@ export class UsuariosController {
   // Sin esto, Nest responde 200 con body vacio; el cliente intenta parsear ese body como JSON
   // (solo el caso 204 se trata como "sin body" en apiClient) y lanza un error falso.
   @HttpCode(HttpStatus.NO_CONTENT)
-  async desactivar(@Param('id') id: string, @CurrentUser() usuario: TokenPayload): Promise<void> {
-    await this.desactivarUsuarioUseCase.execute(id, usuario.sub);
+  @SinAuditoriaGenerica()
+  async desactivar(
+    @Param('id') id: string,
+    @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.desactivarUsuarioUseCase.execute(id, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
   }
 
   @Patch(':id/restablecer-password')
+  @SinAuditoriaGenerica()
   async restablecerPassword(
     @Param('id') id: string,
     @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
   ): Promise<RestablecerPasswordResponseDto> {
-    return this.restablecerPasswordUseCase.execute(id, usuario.sub);
+    return this.restablecerPasswordUseCase.execute(id, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
   }
 
   @Get(':id/actividad')

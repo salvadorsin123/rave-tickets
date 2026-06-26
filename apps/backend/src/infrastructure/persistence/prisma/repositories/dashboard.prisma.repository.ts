@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  ActividadReciente,
   DashboardQueryPort,
   EstadisticasDashboard,
+  FiltroEstadisticas,
   IngresoPorEvento,
   VentasPorPeriodo,
 } from '@application/ports/dashboard.port';
@@ -22,7 +24,8 @@ export class DashboardPrismaRepository implements DashboardQueryPort {
     @Inject(ESCANEO_REPOSITORY) private readonly escaneoRepository: EscaneoRepositoryPort,
   ) {}
 
-  async obtenerEstadisticas(eventoId?: string): Promise<EstadisticasDashboard> {
+  async obtenerEstadisticas(filtro: FiltroEstadisticas): Promise<EstadisticasDashboard> {
+    const { eventoId, esSuperAdmin } = filtro;
     const whereEvento = eventoId ? { eventoId } : {};
 
     const [ventas, boletos, eventos] = await Promise.all([
@@ -58,10 +61,17 @@ export class DashboardPrismaRepository implements DashboardQueryPort {
       select: { id: true, nombre: true },
     });
 
-    const bitacoraReciente = await this.prisma.bitacoraAuditoria.findMany({
-      orderBy: { fechaHora: 'desc' },
-      take: 20,
-    });
+    const actividadReciente: ActividadReciente[] = esSuperAdmin
+      ? (
+          await this.prisma.bitacoraAuditoria.findMany({
+            orderBy: { fechaHora: 'desc' },
+            take: 20,
+          })
+        ).map((b) => ({
+          descripcion: `${b.accion} (${b.entidadAfectada})`,
+          fechaHora: b.fechaHora,
+        }))
+      : [];
 
     return {
       ventasTotales,
@@ -81,10 +91,7 @@ export class DashboardPrismaRepository implements DashboardQueryPort {
         nombre: escaneadores.find((e) => e.id === t.escaneadorId)?.nombre ?? 'Desconocido',
         total: t.total,
       })),
-      actividadReciente: bitacoraReciente.map((b) => ({
-        descripcion: `${b.accion} (${b.entidadAfectada})`,
-        fechaHora: b.fechaHora,
-      })),
+      actividadReciente,
     };
   }
 

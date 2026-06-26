@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import {
   BITACORA_REPOSITORY,
   BitacoraRepositoryPort,
+  ContextoAccion,
   USUARIO_REPOSITORY,
   UsuarioRepositoryPort,
 } from '@application/ports/repositories.port';
@@ -14,7 +15,7 @@ export class DesactivarUsuarioUseCase {
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(usuarioId: string, ejecutadoPorId: string): Promise<void> {
+  async execute(usuarioId: string, contexto: ContextoAccion): Promise<void> {
     const usuario = await this.usuarioRepository.findById(usuarioId);
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -38,12 +39,12 @@ export class DesactivarUsuarioUseCase {
     usuario.desactivar();
     await this.usuarioRepository.update(usuario);
     await this.bitacoraRepository.registrar({
-      usuarioId: ejecutadoPorId,
+      usuarioId: contexto.ejecutadoPorId,
       accion: 'ADMIN_DESACTIVADO',
       entidadAfectada: 'Usuario',
       entidadId: usuario.id,
       detalles: null,
-      ipAddress: null,
+      ipAddress: contexto.ipAddress,
     });
   }
 

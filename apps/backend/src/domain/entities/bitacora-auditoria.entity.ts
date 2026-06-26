@@ -8,5 +8,7 @@ export class BitacoraAuditoriaEntity {
     public readonly detalles: string | null,
     public readonly fechaHora: Date,
     public readonly ipAddress: string | null,
+    public readonly usuarioNombre: string | null,
+    public readonly usuarioEmail: string | null,
   ) {}
 }

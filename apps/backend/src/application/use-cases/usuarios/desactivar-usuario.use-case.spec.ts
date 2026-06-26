@@ -38,7 +38,9 @@ describe('DesactivarUsuarioUseCase', () => {
 
   it('lanza NotFoundException si el usuario no existe', async () => {
     usuarioRepository.findById.mockResolvedValue(null);
-    await expect(useCase.execute('x', 'actor-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(useCase.execute('x', { ejecutadoPorId: 'actor-1', ipAddress: null })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('desactiva y registra bitacora cuando quedan otros admins activos', async () => {
@@ -46,7 +48,7 @@ describe('DesactivarUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo, crearUsuario('admin-1', RolNombre.ADMIN)]);
 
-    await useCase.execute('admin-2', 'actor-1');
+    await useCase.execute('admin-2', { ejecutadoPorId: 'actor-1', ipAddress: null });
 
     expect(objetivo.activo).toBe(false);
     expect(usuarioRepository.update).toHaveBeenCalledWith(objetivo);
@@ -60,7 +62,9 @@ describe('DesactivarUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo]);
 
-    await expect(useCase.execute('admin-1', 'actor-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      useCase.execute('admin-1', { ejecutadoPorId: 'actor-1', ipAddress: null }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(usuarioRepository.update).not.toHaveBeenCalled();
   });
 
@@ -69,7 +73,9 @@ describe('DesactivarUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo]);
 
-    await expect(useCase.execute('super-1', 'actor-1')).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      useCase.execute('super-1', { ejecutadoPorId: 'actor-1', ipAddress: null }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('permite desactivar a un super_admin si quedan otros activos', async () => {
@@ -80,7 +86,7 @@ describe('DesactivarUsuarioUseCase', () => {
       crearUsuario('super-1', RolNombre.SUPER_ADMIN),
     ]);
 
-    await useCase.execute('super-2', 'actor-1');
+    await useCase.execute('super-2', { ejecutadoPorId: 'actor-1', ipAddress: null });
 
     expect(objetivo.activo).toBe(false);
   });

@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BITACORA_REPOSITORY,
   BitacoraRepositoryPort,
+  ContextoAccion,
   USUARIO_REPOSITORY,
   UsuarioRepositoryPort,
 } from '@application/ports/repositories.port';
@@ -15,7 +16,7 @@ export class EditarUsuarioUseCase {
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(usuarioId: string, dto: EditarUsuarioDto, ejecutadoPorId: string): Promise<UsuarioEntity> {
+  async execute(usuarioId: string, dto: EditarUsuarioDto, contexto: ContextoAccion): Promise<UsuarioEntity> {
     const usuario = await this.usuarioRepository.findById(usuarioId);
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
@@ -26,12 +27,12 @@ export class EditarUsuarioUseCase {
 
     const actualizado = await this.usuarioRepository.update(usuario);
     await this.bitacoraRepository.registrar({
-      usuarioId: ejecutadoPorId,
+      usuarioId: contexto.ejecutadoPorId,
       accion: 'ADMIN_EDITADO',
       entidadAfectada: 'Usuario',
       entidadId: usuario.id,
       detalles: null,
-      ipAddress: null,
+      ipAddress: contexto.ipAddress,
     });
     return actualizado;
   }

@@ -1,25 +1,37 @@
 import { CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request } from 'express';
 import { BITACORA_REPOSITORY, BitacoraRepositoryPort } from '@application/ports/repositories.port';
 import { TokenPayload } from '@application/ports/infrastructure.port';
+import { SIN_AUDITORIA_GENERICA_KEY } from '@presentation/decorators/sin-auditoria-generica.decorator';
 
 const METODOS_AUDITABLES = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
 /**
  * Complementa la bitacora fina que ya registran ciertos casos de uso (cancelar/reembolsar/
  * bloquear boleto, escaneos): aqui se deja un rastro generico de toda mutacion HTTP, incluso
- * la de endpoints que aun no llaman a BitacoraRepositoryPort explicitamente.
+ * la de endpoints que aun no llaman a BitacoraRepositoryPort explicitamente. Los endpoints que
+ * ya registran su propia entrada especifica se marcan con @SinAuditoriaGenerica() para evitar
+ * filas duplicadas.
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(@Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort) {}
+  constructor(
+    @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
 
-    if (!METODOS_AUDITABLES.has(request.method)) {
+    const sinAuditoriaGenerica = this.reflector.getAllAndOverride<boolean>(SIN_AUDITORIA_GENERICA_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (sinAuditoriaGenerica || !METODOS_AUDITABLES.has(request.method)) {
       return next.handle();
     }
 
