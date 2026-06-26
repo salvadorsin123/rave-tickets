@@ -13,9 +13,11 @@ import { ListarEscaneadoresUseCase } from '@application/use-cases/usuarios/lista
 import { ConsultarActividadEscaneadorUseCase } from '@application/use-cases/usuarios/consultar-actividad-escaneador.use-case';
 import { UsuarioEntity } from '@domain/entities/usuario.entity';
 import { RolNombre } from '@domain/enums/rol.enum';
+import { TokenPayload } from '@application/ports/infrastructure.port';
 import { JwtAuthGuard } from '@presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '@presentation/guards/roles.guard';
 import { Roles } from '@presentation/decorators/roles.decorator';
+import { CurrentUser } from '@presentation/decorators/current-user.decorator';
 
 interface UsuarioResponse {
   id: string;
@@ -63,22 +65,29 @@ export class UsuariosController {
   }
 
   @Patch(':id')
-  async editar(@Param('id') id: string, @Body() dto: EditarUsuarioDto): Promise<UsuarioResponse> {
-    const usuario = await this.editarUsuarioUseCase.execute(id, dto);
-    return aUsuarioResponse(usuario);
+  async editar(
+    @Param('id') id: string,
+    @Body() dto: EditarUsuarioDto,
+    @CurrentUser() usuario: TokenPayload,
+  ): Promise<UsuarioResponse> {
+    const actualizado = await this.editarUsuarioUseCase.execute(id, dto, usuario.sub);
+    return aUsuarioResponse(actualizado);
   }
 
   @Patch(':id/desactivar')
   // Sin esto, Nest responde 200 con body vacio; el cliente intenta parsear ese body como JSON
   // (solo el caso 204 se trata como "sin body" en apiClient) y lanza un error falso.
   @HttpCode(HttpStatus.NO_CONTENT)
-  async desactivar(@Param('id') id: string): Promise<void> {
-    await this.desactivarUsuarioUseCase.execute(id);
+  async desactivar(@Param('id') id: string, @CurrentUser() usuario: TokenPayload): Promise<void> {
+    await this.desactivarUsuarioUseCase.execute(id, usuario.sub);
   }
 
   @Patch(':id/restablecer-password')
-  async restablecerPassword(@Param('id') id: string): Promise<RestablecerPasswordResponseDto> {
-    return this.restablecerPasswordUseCase.execute(id);
+  async restablecerPassword(
+    @Param('id') id: string,
+    @CurrentUser() usuario: TokenPayload,
+  ): Promise<RestablecerPasswordResponseDto> {
+    return this.restablecerPasswordUseCase.execute(id, usuario.sub);
   }
 
   @Get(':id/actividad')

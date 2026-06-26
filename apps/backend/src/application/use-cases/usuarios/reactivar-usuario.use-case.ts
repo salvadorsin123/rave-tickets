@@ -5,34 +5,29 @@ import {
   USUARIO_REPOSITORY,
   UsuarioRepositoryPort,
 } from '@application/ports/repositories.port';
-import { EditarUsuarioDto } from '@application/dtos/usuarios.dto';
-import { UsuarioEntity } from '@domain/entities/usuario.entity';
 
 @Injectable()
-export class EditarUsuarioUseCase {
+export class ReactivarUsuarioUseCase {
   constructor(
     @Inject(USUARIO_REPOSITORY) private readonly usuarioRepository: UsuarioRepositoryPort,
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(usuarioId: string, dto: EditarUsuarioDto, ejecutadoPorId: string): Promise<UsuarioEntity> {
+  async execute(usuarioId: string, ejecutadoPorId: string): Promise<void> {
     const usuario = await this.usuarioRepository.findById(usuarioId);
     if (!usuario) {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    if (dto.nombre !== undefined) usuario.nombre = dto.nombre;
-    if (dto.email !== undefined) usuario.email = dto.email;
-
-    const actualizado = await this.usuarioRepository.update(usuario);
+    usuario.activar();
+    await this.usuarioRepository.update(usuario);
     await this.bitacoraRepository.registrar({
       usuarioId: ejecutadoPorId,
-      accion: 'ADMIN_EDITADO',
+      accion: 'ADMIN_REACTIVADO',
       entidadAfectada: 'Usuario',
       entidadId: usuario.id,
       detalles: null,
       ipAddress: null,
     });
-    return actualizado;
   }
 }

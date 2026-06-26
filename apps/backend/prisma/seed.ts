@@ -14,6 +14,7 @@ const PERMISOS = [
 ];
 
 const ROLES_PERMISOS: Record<string, string[]> = {
+  super_admin: PERMISOS.map((p) => p.nombre),
   admin: PERMISOS.map((p) => p.nombre),
   escaneador: ['escaneos.validar'],
 };
@@ -59,6 +60,29 @@ async function main(): Promise<void> {
       activo: true,
     },
   });
+
+  // Nunca se reasigna el rol del admin sembrado arriba (podria correr de nuevo contra
+  // una base de produccion con datos reales) -- el primer super_admin es un usuario
+  // nuevo y separado, creado solo si todavia no existe ninguno.
+  const rolSuperAdmin = await prisma.rol.findUniqueOrThrow({ where: { nombre: 'super_admin' } });
+  const yaExisteSuperAdmin = await prisma.usuario.findFirst({ where: { rolId: rolSuperAdmin.id } });
+  if (!yaExisteSuperAdmin) {
+    const emailSuperAdmin = process.env.SEED_SUPER_ADMIN_EMAIL ?? 'superadmin@rave.local';
+    const passwordSuperAdmin = process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'CambiameYa123!';
+
+    await prisma.usuario.upsert({
+      where: { email: emailSuperAdmin },
+      update: {},
+      create: {
+        nombre: 'Administrador',
+        email: emailSuperAdmin,
+        passwordHash: await bcrypt.hash(passwordSuperAdmin, 12),
+        rolId: rolSuperAdmin.id,
+        activo: true,
+      },
+    });
+    console.log(`Super admin sembrado: ${emailSuperAdmin} (cambiar password tras el primer login).`);
+  }
 
   console.log(`Seed completado. Usuario admin: ${emailAdmin} (cambiar password tras el primer login).`);
 }

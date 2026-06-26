@@ -58,6 +58,16 @@ export class UsuarioPrismaRepository implements UsuarioRepositoryPort {
     return this.toDomain(row);
   }
 
+  async cambiarRol(usuarioId: string, nuevoRolNombre: RolNombre): Promise<UsuarioEntity> {
+    const rol = await this.prisma.rol.findUniqueOrThrow({ where: { nombre: nuevoRolNombre } });
+    const row = await this.prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { rolId: rol.id },
+      include: { rol: true },
+    });
+    return this.toDomain(row);
+  }
+
   private toDomain(row: UsuarioConRol): UsuarioEntity {
     return new UsuarioEntity(
       row.id,

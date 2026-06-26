@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { RolNombre } from '@domain/enums/rol.enum';
 
 export class CrearEscaneadorDto {
   @IsString()
@@ -35,10 +36,11 @@ export class EditarUsuarioDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+}
 
-  @IsOptional()
-  @IsBoolean()
-  activo?: boolean;
+export class CambiarRolDto {
+  @IsEnum(RolNombre)
+  rol!: RolNombre;
 }
 
 export interface RestablecerPasswordResponseDto {

@@ -77,6 +77,7 @@ describe('ValidarEntradaUseCase', () => {
       findAllByRol: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      cambiarRol: jest.fn(),
     };
 
     useCase = new ValidarEntradaUseCase(

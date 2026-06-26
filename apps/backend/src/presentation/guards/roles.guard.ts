@@ -3,6 +3,14 @@ import { Reflector } from '@nestjs/core';
 import { RolNombre } from '@domain/enums/rol.enum';
 import { ROLES_KEY } from '@presentation/decorators/roles.decorator';
 
+// Un super_admin satisface implicitamente cualquier endpoint que solo exija admin, sin
+// tener que listar ambos roles en cada @Roles(...) de los controladores existentes.
+const ROLES_EFECTIVOS: Record<RolNombre, RolNombre[]> = {
+  [RolNombre.SUPER_ADMIN]: [RolNombre.SUPER_ADMIN, RolNombre.ADMIN],
+  [RolNombre.ADMIN]: [RolNombre.ADMIN],
+  [RolNombre.ESCANEADOR]: [RolNombre.ESCANEADOR],
+};
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -17,6 +25,11 @@ export class RolesGuard implements CanActivate {
     }
 
     const usuario = context.switchToHttp().getRequest().user as { rol?: string } | undefined;
-    return !!usuario?.rol && rolesRequeridos.includes(usuario.rol as RolNombre);
+    if (!usuario?.rol) {
+      return false;
+    }
+
+    const rolEfectivos = ROLES_EFECTIVOS[usuario.rol as RolNombre] ?? [usuario.rol as RolNombre];
+    return rolesRequeridos.some((rol) => rolEfectivos.includes(rol));
   }
 }

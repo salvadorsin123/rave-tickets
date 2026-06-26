@@ -10,14 +10,23 @@ import { RowMenu } from '@/components/ui/RowMenu';
 import { Modal } from '@/components/ui/Modal';
 import { CrearAdminModal } from './CrearAdminModal';
 import { EditarAdminModal } from './EditarAdminModal';
+import { CambiarRolModal } from './CambiarRolModal';
+import { RolNombre } from '@/types/enums';
 import type { UsuarioResponse } from '@/types/models';
 
-export function AdministradoresView() {
+const ROL_LABEL: Record<RolNombre, string> = {
+  [RolNombre.SUPER_ADMIN]: 'Super Administrador',
+  [RolNombre.ADMIN]: 'Administrador',
+  [RolNombre.ESCANEADOR]: 'Escaneador',
+};
+
+export function AdministradoresView({ esSuperAdmin }: { esSuperAdmin: boolean }) {
   const { mostrar } = useToast();
   const [administradores, setAdministradores] = useState<UsuarioResponse[]>([]);
   const [cargando, setCargando] = useState(true);
   const [modalCrear, setModalCrear] = useState(false);
   const [adminEditando, setAdminEditando] = useState<UsuarioResponse | null>(null);
+  const [adminCambiandoRol, setAdminCambiandoRol] = useState<UsuarioResponse | null>(null);
   const [passwordTemporal, setPasswordTemporal] = useState<{ nombre: string; password: string } | null>(null);
 
   function cargar() {
@@ -38,6 +47,17 @@ export function AdministradoresView() {
       cargar();
     } catch (error) {
       mostrar(error instanceof ApiError ? error.message : 'No se pudo desactivar', 'error');
+    }
+  }
+
+  async function reactivar(admin: UsuarioResponse) {
+    if (!confirm(`¿Reactivar a ${admin.nombre}?`)) return;
+    try {
+      await apiClient.patch(`usuarios/administradores/${admin.id}/reactivar`);
+      mostrar('Administrador reactivado', 'success');
+      cargar();
+    } catch (error) {
+      mostrar(error instanceof ApiError ? error.message : 'No se pudo reactivar', 'error');
     }
   }
 
@@ -71,6 +91,7 @@ export function AdministradoresView() {
               <tr className="border-b border-base-700 text-left text-xs uppercase text-base-400">
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Rol</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -80,6 +101,7 @@ export function AdministradoresView() {
                 <tr key={admin.id} className="border-b border-base-800 last:border-0 hover:bg-base-850/60">
                   <td className="px-4 py-3 font-medium text-base-100">{admin.nombre}</td>
                   <td className="px-4 py-3 text-base-300">{admin.email}</td>
+                  <td className="px-4 py-3 text-base-300">{ROL_LABEL[admin.rol]}</td>
                   <td className="px-4 py-3">
                     <ActivoBadge activo={admin.activo} />
                   </td>
@@ -87,12 +109,22 @@ export function AdministradoresView() {
                     <RowMenu
                       actions={[
                         { label: 'Editar', onClick: () => setAdminEditando(admin) },
-                        { label: 'Restablecer contraseña', onClick: () => restablecerPassword(admin) },
+                        {
+                          label: 'Restablecer contraseña',
+                          hidden: !esSuperAdmin,
+                          onClick: () => restablecerPassword(admin),
+                        },
+                        { label: 'Cambiar rol', hidden: !esSuperAdmin, onClick: () => setAdminCambiandoRol(admin) },
                         {
                           label: 'Desactivar',
                           danger: true,
-                          hidden: !admin.activo,
+                          hidden: !esSuperAdmin || !admin.activo,
                           onClick: () => desactivar(admin),
+                        },
+                        {
+                          label: 'Reactivar',
+                          hidden: !esSuperAdmin || admin.activo,
+                          onClick: () => reactivar(admin),
                         },
                       ]}
                     />
@@ -106,6 +138,7 @@ export function AdministradoresView() {
 
       <CrearAdminModal open={modalCrear} onClose={() => setModalCrear(false)} onCreado={cargar} />
       <EditarAdminModal admin={adminEditando} onClose={() => setAdminEditando(null)} onGuardado={cargar} />
+      <CambiarRolModal admin={adminCambiandoRol} onClose={() => setAdminCambiandoRol(null)} onGuardado={cargar} />
 
       {passwordTemporal && (
         <Modal open onClose={() => setPasswordTemporal(null)} title="Contraseña restablecida">

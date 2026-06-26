@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ToastProvider } from '@/components/ui/Toast';
-import { RolNombre } from '@/types/enums';
+import { esAdminOMas } from '@/types/enums';
 import type { UsuarioAutenticado } from '@/types/models';
 
 export function ScannerShell({ usuario, children }: { usuario: UsuarioAutenticado; children: React.ReactNode }) {
@@ -60,7 +60,7 @@ export function ScannerShell({ usuario, children }: { usuario: UsuarioAutenticad
             >
               Mi perfil
             </Link>
-            {usuario.rol === RolNombre.ADMIN && (
+            {esAdminOMas(usuario.rol) && (
               <Link
                 href="/dashboard"
                 className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-neon-cyan hover:bg-base-800"

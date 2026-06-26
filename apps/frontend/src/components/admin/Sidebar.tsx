@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
+import { RolNombre } from '@/types/enums';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -15,8 +16,9 @@ const NAV_ITEMS = [
   { href: '/auditoria', label: 'Auditoría', icon: '🛡️' },
 ];
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function Sidebar({ open, onClose, rol }: { open: boolean; onClose: () => void; rol: RolNombre }) {
   const pathname = usePathname();
+  const navItems = NAV_ITEMS.filter((item) => item.href !== '/auditoria' || rol === RolNombre.SUPER_ADMIN);
 
   return (
     <>
@@ -35,7 +37,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           </div>
         </div>
         <nav className="flex flex-col gap-1 p-3">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const activo = pathname.startsWith(item.href);
             return (
               <Link

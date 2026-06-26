@@ -32,6 +32,7 @@ describe('LoginUseCase', () => {
       findAllByRol: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      cambiarRol: jest.fn(),
     };
     passwordHasher = { hash: jest.fn(), comparar: jest.fn() };
     tokenService = {

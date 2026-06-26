@@ -5,6 +5,8 @@ import { CrearEscaneadorUseCase } from '@application/use-cases/usuarios/crear-es
 import { CrearAdminUseCase } from '@application/use-cases/usuarios/crear-admin.use-case';
 import { EditarUsuarioUseCase } from '@application/use-cases/usuarios/editar-usuario.use-case';
 import { DesactivarUsuarioUseCase } from '@application/use-cases/usuarios/desactivar-usuario.use-case';
+import { ReactivarUsuarioUseCase } from '@application/use-cases/usuarios/reactivar-usuario.use-case';
+import { CambiarRolUsuarioUseCase } from '@application/use-cases/usuarios/cambiar-rol-usuario.use-case';
 import { RestablecerPasswordUseCase } from '@application/use-cases/usuarios/restablecer-password.use-case';
 import { ListarEscaneadoresUseCase } from '@application/use-cases/usuarios/listar-escaneadores.use-case';
 import { ListarAdministradoresUseCase } from '@application/use-cases/usuarios/listar-administradores.use-case';
@@ -17,6 +19,8 @@ import { ConsultarActividadEscaneadorUseCase } from '@application/use-cases/usua
     CrearAdminUseCase,
     EditarUsuarioUseCase,
     DesactivarUsuarioUseCase,
+    ReactivarUsuarioUseCase,
+    CambiarRolUsuarioUseCase,
     RestablecerPasswordUseCase,
     ListarEscaneadoresUseCase,
     ListarAdministradoresUseCase,

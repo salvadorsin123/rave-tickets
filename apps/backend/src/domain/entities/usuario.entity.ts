@@ -17,6 +17,10 @@ export class UsuarioEntity {
     return this.rolNombre === RolNombre.ADMIN;
   }
 
+  esSuperAdmin(): boolean {
+    return this.rolNombre === RolNombre.SUPER_ADMIN;
+  }
+
   esEscaneador(): boolean {
     return this.rolNombre === RolNombre.ESCANEADOR;
   }

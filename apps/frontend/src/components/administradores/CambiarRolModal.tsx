@@ -3,12 +3,13 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Field';
+import { Select } from '@/components/ui/Field';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
+import { RolNombre } from '@/types/enums';
 import type { UsuarioResponse } from '@/types/models';
 
-export function EditarAdminModal({
+export function CambiarRolModal({
   admin,
   onClose,
   onGuardado,
@@ -18,14 +19,12 @@ export function EditarAdminModal({
   onGuardado: () => void;
 }) {
   const { mostrar } = useToast();
-  const [nombre, setNombre] = useState('');
-  const [email, setEmail] = useState('');
+  const [rol, setRol] = useState<RolNombre>(RolNombre.ADMIN);
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     if (!admin) return;
-    setNombre(admin.nombre);
-    setEmail(admin.email);
+    setRol(admin.rol);
   }, [admin]);
 
   if (!admin) return null;
@@ -35,22 +34,25 @@ export function EditarAdminModal({
     e.preventDefault();
     setGuardando(true);
     try {
-      await apiClient.patch(`usuarios/administradores/${adminActual.id}`, { nombre, email });
-      mostrar('Administrador actualizado', 'success');
+      await apiClient.patch(`usuarios/administradores/${adminActual.id}/cambiar-rol`, { rol });
+      mostrar('Rol actualizado', 'success');
       onGuardado();
       onClose();
     } catch (error) {
-      mostrar(error instanceof ApiError ? error.message : 'No se pudo actualizar el administrador', 'error');
+      mostrar(error instanceof ApiError ? error.message : 'No se pudo cambiar el rol', 'error');
     } finally {
       setGuardando(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={`Editar — ${admin.nombre}`}>
+    <Modal open onClose={onClose} title={`Cambiar rol — ${admin.nombre}`}>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Input label="Nombre completo" required value={nombre} onChange={(e) => setNombre(e.target.value)} />
-        <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Select label="Rol" value={rol} onChange={(e) => setRol(e.target.value as RolNombre)}>
+          <option value={RolNombre.ADMIN}>Administrador</option>
+          <option value={RolNombre.SUPER_ADMIN}>Super Administrador</option>
+          <option value={RolNombre.ESCANEADOR}>Escaneador (revoca acceso de admin)</option>
+        </Select>
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar

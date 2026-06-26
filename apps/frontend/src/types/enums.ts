@@ -1,6 +1,13 @@
 export enum RolNombre {
+  SUPER_ADMIN = 'super_admin',
   ADMIN = 'admin',
   ESCANEADOR = 'escaneador',
+}
+
+// Un super administrador puede hacer todo lo que un administrador normal puede hacer
+// (mas las acciones exclusivas de super-admin que se gatean por separado).
+export function esAdminOMas(rol: RolNombre): boolean {
+  return rol === RolNombre.ADMIN || rol === RolNombre.SUPER_ADMIN;
 }
 
 export enum EstadoEvento {

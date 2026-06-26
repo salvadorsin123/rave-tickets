@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from '@/lib/auth-cookies';
 import { decodeAccessToken } from '@/lib/jwt';
-import { RolNombre } from '@/types/enums';
+import { RolNombre, esAdminOMas } from '@/types/enums';
 
-const ADMIN_PATHS = ['/dashboard', '/eventos', '/ventas', '/boletos', '/escaneadores', '/reportes', '/auditoria'];
+const ADMIN_PATHS = ['/dashboard', '/eventos', '/ventas', '/boletos', '/escaneadores', '/administradores', '/reportes'];
+const SUPER_ADMIN_PATHS = ['/auditoria'];
 const SCANNER_PATHS = ['/escanear', '/historial'];
 
 function rutaHomeDe(rol: RolNombre): string {
-  return rol === RolNombre.ADMIN ? '/dashboard' : '/escanear';
+  return esAdminOMas(rol) ? '/dashboard' : '/escanear';
 }
 
 export function middleware(request: NextRequest): NextResponse {
@@ -31,10 +32,15 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   const esRutaAdmin = ADMIN_PATHS.some((p) => pathname.startsWith(p));
+  const esRutaSuperAdmin = SUPER_ADMIN_PATHS.some((p) => pathname.startsWith(p));
   const esRutaEscaneador = SCANNER_PATHS.some((p) => pathname.startsWith(p));
 
-  if (payload && esRutaAdmin && payload.rol !== RolNombre.ADMIN) {
+  if (payload && esRutaAdmin && !esAdminOMas(payload.rol)) {
     return NextResponse.redirect(new URL('/escanear', request.url));
+  }
+
+  if (payload && esRutaSuperAdmin && payload.rol !== RolNombre.SUPER_ADMIN) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   if (pathname === '/' && payload) {

@@ -36,7 +36,7 @@ class ConsultarBitacoraQueryDto {
 @ApiTags('auditoria')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(RolNombre.ADMIN)
+@Roles(RolNombre.SUPER_ADMIN)
 @Controller('auditoria')
 export class AuditoriaController {
   constructor(private readonly consultarBitacoraUseCase: ConsultarBitacoraUseCase) {}

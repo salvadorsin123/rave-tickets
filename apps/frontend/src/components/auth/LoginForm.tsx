@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Field';
-import { RolNombre } from '@/types/enums';
+import { esAdminOMas } from '@/types/enums';
 
 export function LoginForm() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export function LoginForm() {
         return;
       }
 
-      const destinoDefecto = body.usuario.rol === RolNombre.ADMIN ? '/dashboard' : '/escanear';
+      const destinoDefecto = esAdminOMas(body.usuario.rol) ? '/dashboard' : '/escanear';
       const redirect = searchParams.get('redirect');
       router.push(redirect && redirect !== '/login' ? redirect : destinoDefecto);
       router.refresh();

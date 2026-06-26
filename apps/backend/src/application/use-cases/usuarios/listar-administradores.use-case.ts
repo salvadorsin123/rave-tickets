@@ -8,6 +8,10 @@ export class ListarAdministradoresUseCase {
   constructor(@Inject(USUARIO_REPOSITORY) private readonly usuarioRepository: UsuarioRepositoryPort) {}
 
   async execute(): Promise<UsuarioEntity[]> {
-    return this.usuarioRepository.findAllByRol(RolNombre.ADMIN);
+    const [admins, superAdmins] = await Promise.all([
+      this.usuarioRepository.findAllByRol(RolNombre.ADMIN),
+      this.usuarioRepository.findAllByRol(RolNombre.SUPER_ADMIN),
+    ]);
+    return [...admins, ...superAdmins].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 }

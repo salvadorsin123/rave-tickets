@@ -30,6 +30,7 @@ export interface UsuarioRepositoryPort {
   findAllByRol(rolNombre: RolNombre): Promise<UsuarioEntity[]>;
   create(data: CrearUsuarioData): Promise<UsuarioEntity>;
   update(usuario: UsuarioEntity): Promise<UsuarioEntity>;
+  cambiarRol(usuarioId: string, nuevoRolNombre: RolNombre): Promise<UsuarioEntity>;
 }
 
 export interface CrearEventoData {
