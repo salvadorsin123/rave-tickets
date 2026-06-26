@@ -2,7 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { LoginUseCase } from './login.use-case';
 import { UsuarioEntity } from '@domain/entities/usuario.entity';
 import { RolNombre } from '@domain/enums/rol.enum';
-import { UsuarioRepositoryPort } from '@application/ports/repositories.port';
+import { BitacoraRepositoryPort, UsuarioRepositoryPort } from '@application/ports/repositories.port';
 import { PasswordHasherPort, TokenServicePort } from '@application/ports/infrastructure.port';
 
 function crearUsuario(activo = true): UsuarioEntity {
@@ -23,6 +23,7 @@ describe('LoginUseCase', () => {
   let usuarioRepository: jest.Mocked<UsuarioRepositoryPort>;
   let passwordHasher: jest.Mocked<PasswordHasherPort>;
   let tokenService: jest.Mocked<TokenServicePort>;
+  let bitacoraRepository: jest.Mocked<BitacoraRepositoryPort>;
   let useCase: LoginUseCase;
 
   beforeEach(() => {
@@ -40,22 +41,23 @@ describe('LoginUseCase', () => {
       generarRefreshToken: jest.fn().mockReturnValue('refresh-token'),
       verificarRefreshToken: jest.fn(),
     };
+    bitacoraRepository = { registrar: jest.fn(), findAll: jest.fn() };
 
-    useCase = new LoginUseCase(usuarioRepository, passwordHasher, tokenService);
+    useCase = new LoginUseCase(usuarioRepository, passwordHasher, tokenService, bitacoraRepository);
   });
 
   it('lanza UnauthorizedException si el usuario no existe', async () => {
     usuarioRepository.findByEmail.mockResolvedValue(null);
 
-    await expect(useCase.execute({ email: 'no-existe@rave.local', password: 'x' })).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      useCase.execute({ email: 'no-existe@rave.local', password: 'x' }, null),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('lanza UnauthorizedException si el usuario esta inactivo', async () => {
     usuarioRepository.findByEmail.mockResolvedValue(crearUsuario(false));
 
-    await expect(useCase.execute({ email: 'ana@rave.local', password: 'x' })).rejects.toBeInstanceOf(
+    await expect(useCase.execute({ email: 'ana@rave.local', password: 'x' }, null)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
   });
@@ -64,16 +66,16 @@ describe('LoginUseCase', () => {
     usuarioRepository.findByEmail.mockResolvedValue(crearUsuario());
     passwordHasher.comparar.mockResolvedValue(false);
 
-    await expect(useCase.execute({ email: 'ana@rave.local', password: 'incorrecta' })).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      useCase.execute({ email: 'ana@rave.local', password: 'incorrecta' }, null),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('devuelve tokens y datos del usuario cuando las credenciales son validas', async () => {
     usuarioRepository.findByEmail.mockResolvedValue(crearUsuario());
     passwordHasher.comparar.mockResolvedValue(true);
 
-    const resultado = await useCase.execute({ email: 'ana@rave.local', password: 'correcta' });
+    const resultado = await useCase.execute({ email: 'ana@rave.local', password: 'correcta' }, '127.0.0.1');
 
     expect(resultado.accessToken).toBe('access-token');
     expect(resultado.refreshToken).toBe('refresh-token');
@@ -84,5 +86,12 @@ describe('LoginUseCase', () => {
       rol: RolNombre.ADMIN,
     });
     expect(tokenService.generarAccessToken).toHaveBeenCalledWith({ sub: 'usuario-1', rol: RolNombre.ADMIN });
+    expect(bitacoraRepository.registrar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usuarioId: 'usuario-1',
+        accion: 'LOGIN',
+        ipAddress: '127.0.0.1',
+      }),
+    );
   });
 });

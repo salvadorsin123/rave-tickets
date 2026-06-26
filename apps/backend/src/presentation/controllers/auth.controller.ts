@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import {
   CambiarPasswordPropioDto,
   LoginDto,
@@ -11,6 +12,7 @@ import { RefreshTokenUseCase } from '@application/use-cases/auth/refresh-token.u
 import { CambiarPasswordPropioUseCase } from '@application/use-cases/usuarios/cambiar-password-propio.use-case';
 import { JwtAuthGuard } from '@presentation/guards/jwt-auth.guard';
 import { CurrentUser } from '@presentation/decorators/current-user.decorator';
+import { SinAuditoriaGenerica } from '@presentation/decorators/sin-auditoria-generica.decorator';
 import { TokenPayload } from '@application/ports/infrastructure.port';
 
 @ApiTags('auth')
@@ -24,8 +26,9 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
-    return this.loginUseCase.execute(dto);
+  @SinAuditoriaGenerica()
+  async login(@Body() dto: LoginDto, @Req() req: Request): Promise<LoginResponseDto> {
+    return this.loginUseCase.execute(dto, req.ip ?? null);
   }
 
   @Post('refresh')

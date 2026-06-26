@@ -20,6 +20,7 @@ import {
 import { CrearEscaneadorUseCase } from '@application/use-cases/usuarios/crear-escaneador.use-case';
 import { EditarUsuarioUseCase } from '@application/use-cases/usuarios/editar-usuario.use-case';
 import { DesactivarUsuarioUseCase } from '@application/use-cases/usuarios/desactivar-usuario.use-case';
+import { ReactivarUsuarioUseCase } from '@application/use-cases/usuarios/reactivar-usuario.use-case';
 import { RestablecerPasswordUseCase } from '@application/use-cases/usuarios/restablecer-password.use-case';
 import { ListarEscaneadoresUseCase } from '@application/use-cases/usuarios/listar-escaneadores.use-case';
 import { ConsultarActividadEscaneadorUseCase } from '@application/use-cases/usuarios/consultar-actividad-escaneador.use-case';
@@ -60,6 +61,7 @@ export class UsuariosController {
     private readonly crearEscaneadorUseCase: CrearEscaneadorUseCase,
     private readonly editarUsuarioUseCase: EditarUsuarioUseCase,
     private readonly desactivarUsuarioUseCase: DesactivarUsuarioUseCase,
+    private readonly reactivarUsuarioUseCase: ReactivarUsuarioUseCase,
     private readonly restablecerPasswordUseCase: RestablecerPasswordUseCase,
     private readonly listarEscaneadoresUseCase: ListarEscaneadoresUseCase,
     private readonly consultarActividadEscaneadorUseCase: ConsultarActividadEscaneadorUseCase,
@@ -103,6 +105,20 @@ export class UsuariosController {
     @Req() req: Request,
   ): Promise<void> {
     await this.desactivarUsuarioUseCase.execute(id, {
+      ejecutadoPorId: usuario.sub,
+      ipAddress: req.ip ?? null,
+    });
+  }
+
+  @Patch(':id/reactivar')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @SinAuditoriaGenerica()
+  async reactivar(
+    @Param('id') id: string,
+    @CurrentUser() usuario: TokenPayload,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.reactivarUsuarioUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
     });

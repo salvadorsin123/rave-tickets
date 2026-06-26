@@ -43,6 +43,17 @@ export function EscaneadoresView() {
     }
   }
 
+  async function reactivar(escaneador: UsuarioResponse) {
+    if (!confirm(`¿Reactivar a ${escaneador.nombre}?`)) return;
+    try {
+      await apiClient.patch(`usuarios/escaneadores/${escaneador.id}/reactivar`);
+      mostrar('Escaneador reactivado', 'success');
+      cargar();
+    } catch (error) {
+      mostrar(error instanceof ApiError ? error.message : 'No se pudo reactivar', 'error');
+    }
+  }
+
   async function restablecerPassword(escaneador: UsuarioResponse) {
     if (!confirm(`¿Restablecer la contraseña de ${escaneador.nombre}?`)) return;
     try {
@@ -96,6 +107,11 @@ export function EscaneadoresView() {
                           danger: true,
                           hidden: !escaneador.activo,
                           onClick: () => desactivar(escaneador),
+                        },
+                        {
+                          label: 'Reactivar',
+                          hidden: escaneador.activo,
+                          onClick: () => reactivar(escaneador),
                         },
                       ]}
                     />

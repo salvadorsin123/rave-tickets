@@ -1,5 +1,10 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { USUARIO_REPOSITORY, UsuarioRepositoryPort } from '@application/ports/repositories.port';
+import {
+  BITACORA_REPOSITORY,
+  BitacoraRepositoryPort,
+  USUARIO_REPOSITORY,
+  UsuarioRepositoryPort,
+} from '@application/ports/repositories.port';
 import {
   PASSWORD_HASHER,
   PasswordHasherPort,
@@ -14,9 +19,10 @@ export class LoginUseCase {
     @Inject(USUARIO_REPOSITORY) private readonly usuarioRepository: UsuarioRepositoryPort,
     @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasherPort,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenServicePort,
+    @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(dto: LoginDto): Promise<LoginResponseDto> {
+  async execute(dto: LoginDto, ipAddress: string | null): Promise<LoginResponseDto> {
     const usuario = await this.usuarioRepository.findByEmail(dto.email);
     if (!usuario || !usuario.activo) {
       throw new UnauthorizedException('Credenciales invalidas');
@@ -26,6 +32,15 @@ export class LoginUseCase {
     if (!passwordValida) {
       throw new UnauthorizedException('Credenciales invalidas');
     }
+
+    await this.bitacoraRepository.registrar({
+      usuarioId: usuario.id,
+      accion: 'LOGIN',
+      entidadAfectada: 'Usuario',
+      entidadId: usuario.id,
+      detalles: null,
+      ipAddress,
+    });
 
     const payload = { sub: usuario.id, rol: usuario.rolNombre };
     return {
