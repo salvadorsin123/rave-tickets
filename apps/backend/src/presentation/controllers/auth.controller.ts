@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import {
   CambiarPasswordPropioDto,
@@ -24,6 +25,10 @@ export class AuthController {
     private readonly cambiarPasswordPropioUseCase: CambiarPasswordPropioUseCase,
   ) {}
 
+  // Limite mucho mas estricto que el global (100/min): frena fuerza bruta de credenciales
+  // por IP. 10 intentos por minuto deja margen a errores de tecleo legitimos sin permitir
+  // barridos de diccionario.
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @SinAuditoriaGenerica()

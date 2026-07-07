@@ -11,6 +11,7 @@ export class UsuarioEntity {
     public activo: boolean,
     public readonly createdAt: Date,
     public updatedAt: Date,
+    public tokenVersion: number = 0,
   ) {}
 
   esAdmin(): boolean {
@@ -35,5 +36,13 @@ export class UsuarioEntity {
 
   cambiarPasswordHash(nuevoHash: string): void {
     this.passwordHash = nuevoHash;
+  }
+
+  /**
+   * Invalida todas las sesiones vigentes (access y refresh tokens ya emitidos): al
+   * incrementar la version, cualquier token con la version anterior deja de validar.
+   */
+  invalidarSesiones(): void {
+    this.tokenVersion += 1;
   }
 }

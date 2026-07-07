@@ -52,6 +52,7 @@ export class UsuarioPrismaRepository implements UsuarioRepositoryPort {
         email: usuario.email,
         passwordHash: usuario.passwordHash,
         activo: usuario.activo,
+        tokenVersion: usuario.tokenVersion,
       },
       include: { rol: true },
     });
@@ -62,7 +63,9 @@ export class UsuarioPrismaRepository implements UsuarioRepositoryPort {
     const rol = await this.prisma.rol.findUniqueOrThrow({ where: { nombre: nuevoRolNombre } });
     const row = await this.prisma.usuario.update({
       where: { id: usuarioId },
-      data: { rolId: rol.id },
+      // Cambiar de rol tambien invalida las sesiones vigentes (el token viejo lleva el
+      // rol anterior); el incremento atomico evita perder bumps concurrentes.
+      data: { rolId: rol.id, tokenVersion: { increment: 1 } },
       include: { rol: true },
     });
     return this.toDomain(row);
@@ -79,6 +82,7 @@ export class UsuarioPrismaRepository implements UsuarioRepositoryPort {
       row.activo,
       row.createdAt,
       row.updatedAt,
+      row.tokenVersion,
     );
   }
 }

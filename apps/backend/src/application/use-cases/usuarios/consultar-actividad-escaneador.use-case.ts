@@ -16,7 +16,10 @@ export class ConsultarActividadEscaneadorUseCase {
 
   async execute(escaneadorId: string): Promise<EscaneoEntity[]> {
     const usuario = await this.usuarioRepository.findById(escaneadorId);
-    if (!usuario) {
+    // Solo escaneadores: este endpoint cuelga de la ruta de escaneadores (accesible a
+    // cualquier admin). Sin este filtro, un admin podria enumerar la actividad de otro
+    // admin o super_admin pasando su id.
+    if (!usuario || !usuario.esEscaneador()) {
       throw new NotFoundException('Escaneador no encontrado');
     }
 

@@ -90,6 +90,7 @@ export class UsuariosController {
     const actualizado = await this.editarUsuarioUseCase.execute(id, dto, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ESCANEADOR],
     });
     return aUsuarioResponse(actualizado);
   }
@@ -107,6 +108,7 @@ export class UsuariosController {
     await this.desactivarUsuarioUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ESCANEADOR],
     });
   }
 
@@ -121,6 +123,7 @@ export class UsuariosController {
     await this.reactivarUsuarioUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ESCANEADOR],
     });
   }
 
@@ -134,6 +137,7 @@ export class UsuariosController {
     return this.restablecerPasswordUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ESCANEADOR],
     });
   }
 

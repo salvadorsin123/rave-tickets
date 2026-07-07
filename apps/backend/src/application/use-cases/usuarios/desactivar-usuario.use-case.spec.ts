@@ -38,9 +38,13 @@ describe('DesactivarUsuarioUseCase', () => {
 
   it('lanza NotFoundException si el usuario no existe', async () => {
     usuarioRepository.findById.mockResolvedValue(null);
-    await expect(useCase.execute('x', { ejecutadoPorId: 'actor-1', ipAddress: null })).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      useCase.execute('x', {
+        ejecutadoPorId: 'actor-1',
+        ipAddress: null,
+        rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('desactiva y registra bitacora cuando quedan otros admins activos', async () => {
@@ -48,9 +52,15 @@ describe('DesactivarUsuarioUseCase', () => {
     usuarioRepository.findById.mockResolvedValue(objetivo);
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo, crearUsuario('admin-1', RolNombre.ADMIN)]);
 
-    await useCase.execute('admin-2', { ejecutadoPorId: 'actor-1', ipAddress: null });
+    await useCase.execute('admin-2', {
+      ejecutadoPorId: 'actor-1',
+      ipAddress: null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
+    });
 
     expect(objetivo.activo).toBe(false);
+    // Invalida sesiones vigentes: el token viejo deja de validar contra la nueva version.
+    expect(objetivo.tokenVersion).toBe(1);
     expect(usuarioRepository.update).toHaveBeenCalledWith(objetivo);
     expect(bitacoraRepository.registrar).toHaveBeenCalledWith(
       expect.objectContaining({ usuarioId: 'actor-1', accion: 'ADMIN_DESACTIVADO', entidadId: 'admin-2' }),
@@ -63,7 +73,11 @@ describe('DesactivarUsuarioUseCase', () => {
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo]);
 
     await expect(
-      useCase.execute('admin-1', { ejecutadoPorId: 'actor-1', ipAddress: null }),
+      useCase.execute('admin-1', {
+        ejecutadoPorId: 'actor-1',
+        ipAddress: null,
+        rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
+      }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(usuarioRepository.update).not.toHaveBeenCalled();
   });
@@ -74,8 +88,28 @@ describe('DesactivarUsuarioUseCase', () => {
     usuarioRepository.findAllByRol.mockResolvedValue([objetivo]);
 
     await expect(
-      useCase.execute('super-1', { ejecutadoPorId: 'actor-1', ipAddress: null }),
+      useCase.execute('super-1', {
+        ejecutadoPorId: 'actor-1',
+        ipAddress: null,
+        rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
+      }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rechaza (como no encontrado) desactivar a un usuario fuera de rolesPermitidos', async () => {
+    // Regresion: la ruta de escaneadores acota rolesPermitidos a [ESCANEADOR]; un admin no
+    // debe poder desactivar a un super_admin colando su id por ese endpoint.
+    const objetivo = crearUsuario('super-1', RolNombre.SUPER_ADMIN);
+    usuarioRepository.findById.mockResolvedValue(objetivo);
+
+    await expect(
+      useCase.execute('super-1', {
+        ejecutadoPorId: 'actor-1',
+        ipAddress: null,
+        rolesPermitidos: [RolNombre.ESCANEADOR],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(usuarioRepository.update).not.toHaveBeenCalled();
   });
 
   it('permite desactivar a un super_admin si quedan otros activos', async () => {
@@ -86,7 +120,11 @@ describe('DesactivarUsuarioUseCase', () => {
       crearUsuario('super-1', RolNombre.SUPER_ADMIN),
     ]);
 
-    await useCase.execute('super-2', { ejecutadoPorId: 'actor-1', ipAddress: null });
+    await useCase.execute('super-2', {
+      ejecutadoPorId: 'actor-1',
+      ipAddress: null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
+    });
 
     expect(objetivo.activo).toBe(false);
   });

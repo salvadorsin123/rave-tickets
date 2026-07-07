@@ -85,7 +85,11 @@ describe('LoginUseCase', () => {
       email: 'ana@rave.local',
       rol: RolNombre.ADMIN,
     });
-    expect(tokenService.generarAccessToken).toHaveBeenCalledWith({ sub: 'usuario-1', rol: RolNombre.ADMIN });
+    expect(tokenService.generarAccessToken).toHaveBeenCalledWith({
+      sub: 'usuario-1',
+      rol: RolNombre.ADMIN,
+      tokenVersion: 0,
+    });
     expect(bitacoraRepository.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
         usuarioId: 'usuario-1',

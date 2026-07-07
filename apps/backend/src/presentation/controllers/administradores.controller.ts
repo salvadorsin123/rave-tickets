@@ -99,6 +99,7 @@ export class AdministradoresController {
     const actualizado = await this.editarUsuarioUseCase.execute(id, dto, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
     });
     return aUsuarioResponse(actualizado);
   }
@@ -117,6 +118,7 @@ export class AdministradoresController {
     await this.desactivarUsuarioUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
     });
   }
 
@@ -132,6 +134,7 @@ export class AdministradoresController {
     await this.reactivarUsuarioUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
     });
   }
 
@@ -147,6 +150,7 @@ export class AdministradoresController {
     const actualizado = await this.cambiarRolUsuarioUseCase.execute(id, dto.rol, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
     });
     return aUsuarioResponse(actualizado);
   }
@@ -162,6 +166,7 @@ export class AdministradoresController {
     return this.restablecerPasswordUseCase.execute(id, {
       ejecutadoPorId: usuario.sub,
       ipAddress: req.ip ?? null,
+      rolesPermitidos: [RolNombre.ADMIN, RolNombre.SUPER_ADMIN],
     });
   }
 }

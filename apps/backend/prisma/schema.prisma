@@ -46,6 +46,9 @@ model Usuario {
   rolId        String   @db.UniqueIdentifier
   rol          Rol      @relation(fields: [rolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   activo       Boolean  @default(true)
+  // Se incrementa al restablecer contrasena, cambiar rol o desactivar: invalida de
+  // inmediato todos los access/refresh tokens emitidos con una version anterior.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

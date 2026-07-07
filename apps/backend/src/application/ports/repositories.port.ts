@@ -157,6 +157,17 @@ export interface ContextoAccion {
   ipAddress: string | null;
 }
 
+/**
+ * Contexto para acciones que mutan/consultan a OTRO usuario por id. `rolesPermitidos`
+ * declara que roles puede gestionar el endpoint invocador; el use-case exige que el
+ * usuario objetivo pertenezca a ese conjunto. Es obligatorio (no opcional) para que el
+ * compilador fuerce a cada endpoint a acotar su alcance y no se pueda, por ejemplo,
+ * resetear la contrasena de un super_admin desde la ruta de escaneadores.
+ */
+export interface ContextoAccionSobreUsuario extends ContextoAccion {
+  rolesPermitidos: RolNombre[];
+}
+
 export interface FiltroBitacora {
   entidadAfectada?: string;
   entidadId?: string;

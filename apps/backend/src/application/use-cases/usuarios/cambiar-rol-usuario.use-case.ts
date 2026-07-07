@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import {
   BITACORA_REPOSITORY,
   BitacoraRepositoryPort,
-  ContextoAccion,
+  ContextoAccionSobreUsuario,
   USUARIO_REPOSITORY,
   UsuarioRepositoryPort,
 } from '@application/ports/repositories.port';
@@ -16,9 +16,13 @@ export class CambiarRolUsuarioUseCase {
     @Inject(BITACORA_REPOSITORY) private readonly bitacoraRepository: BitacoraRepositoryPort,
   ) {}
 
-  async execute(usuarioId: string, nuevoRol: RolNombre, contexto: ContextoAccion): Promise<UsuarioEntity> {
+  async execute(
+    usuarioId: string,
+    nuevoRol: RolNombre,
+    contexto: ContextoAccionSobreUsuario,
+  ): Promise<UsuarioEntity> {
     const usuario = await this.usuarioRepository.findById(usuarioId);
-    if (!usuario) {
+    if (!usuario || !contexto.rolesPermitidos.includes(usuario.rolNombre)) {
       throw new NotFoundException('Usuario no encontrado');
     }
 

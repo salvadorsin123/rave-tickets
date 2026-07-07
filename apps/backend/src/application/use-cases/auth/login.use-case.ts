@@ -42,7 +42,7 @@ export class LoginUseCase {
       ipAddress,
     });
 
-    const payload = { sub: usuario.id, rol: usuario.rolNombre };
+    const payload = { sub: usuario.id, rol: usuario.rolNombre, tokenVersion: usuario.tokenVersion };
     return {
       accessToken: this.tokenService.generarAccessToken(payload),
       refreshToken: this.tokenService.generarRefreshToken(payload),

@@ -37,6 +37,8 @@ export interface PasswordHasherPort {
 export interface TokenPayload {
   sub: string;
   rol: string;
+  /** Version de sesion del usuario al emitir el token; debe coincidir con la de BD para ser valido. */
+  tokenVersion: number;
 }
 
 export interface TokenServicePort {

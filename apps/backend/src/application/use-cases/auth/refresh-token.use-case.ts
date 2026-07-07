@@ -16,10 +16,16 @@ export class RefreshTokenUseCase {
     }
 
     const usuario = await this.usuarioRepository.findById(payload.sub);
-    if (!usuario || !usuario.activo) {
+    if (!usuario || !usuario.activo || usuario.tokenVersion !== payload.tokenVersion) {
       throw new UnauthorizedException('Usuario no encontrado o inactivo');
     }
 
-    return { accessToken: this.tokenService.generarAccessToken({ sub: usuario.id, rol: usuario.rolNombre }) };
+    return {
+      accessToken: this.tokenService.generarAccessToken({
+        sub: usuario.id,
+        rol: usuario.rolNombre,
+        tokenVersion: usuario.tokenVersion,
+      }),
+    };
   }
 }
