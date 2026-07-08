@@ -46,6 +46,11 @@ services:
       azurite:
         condition: service_started
     environment:
+      # Stack local/demo: se marca explicitamente como development (la imagen fija
+      # NODE_ENV=production por defecto). Asi la validacion de arranque acepta los secretos
+      # de ejemplo de abajo y Swagger queda disponible en /docs. El despliegue real en Azure
+      # corre como production, donde esos secretos de ejemplo hacen fallar el arranque.
+      NODE_ENV: "development"
       DATABASE_URL: "sqlserver://db:1433;database=RaveDb;user=sa;password=${DB_SA_PASSWORD:-R4ve!DevPassw0rd};encrypt=true;trustServerCertificate=true"
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-cambiar}
       JWT_ACCESS_EXPIRES_IN: "15m"
