@@ -70,8 +70,11 @@ jobs:
           cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rave-frontend:latest
           cache-to: type=inline
 
-  deploy:
-    name: Deploy a App Service
+  # Backend y frontend se despliegan en jobs separados para que corran en paralelo: cada
+  # webapps-deploy espera a que su app arranque, y en serie esos arranques (lentos en B1)
+  # se sumaban. En paralelo se solapan.
+  deploy-backend:
+    name: Deploy backend a App Service
     needs: build-and-push
     runs-on: ubuntu-latest
     environment: production
@@ -92,13 +95,26 @@ jobs:
           app-name: ${{ env.BACKEND_APP_NAME }}
           images: ${{ env.ACR_LOGIN_SERVER }}/rave-backend:${{ needs.build-and-push.outputs.image-tag }}
 
+      - name: Verificar salud del backend
+        run: |
+          sleep 20
+          curl --fail "https://${BACKEND_APP_NAME}.azurewebsites.net/health" || (echo "Backend no respondio" && exit 1)
+
+  deploy-frontend:
+    name: Deploy frontend a App Service
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Login en Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Deploy — frontend
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.FRONTEND_APP_NAME }}
           images: ${{ env.ACR_LOGIN_SERVER }}/rave-frontend:${{ needs.build-and-push.outputs.image-tag }}
-
-      - name: Verificar salud del backend
-        run: |
-          sleep 20
-          curl --fail "https://${BACKEND_APP_NAME}.azurewebsites.net/health" || (echo "Backend no respondio" && exit 1)

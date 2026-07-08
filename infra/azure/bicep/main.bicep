@@ -211,6 +211,9 @@ resource backendApp 'Microsoft.Web/sites@2023-12-01' = {
       linuxFxVersion: 'DOCKER|${acr.properties.loginServer}/rave-backend:${containerImageTag}'
       acrUseManagedIdentityCreds: true
       alwaysOn: true
+      // App Service sondea esta ruta (200 = sano). El endpoint GET /health responde sin
+      // auth ni acceso a BD, por lo que no da falsos negativos durante el arranque.
+      healthCheckPath: '/health'
       appSettings: [
         { name: 'WEBSITES_PORT', value: '3001' }
         { name: 'PORT', value: '3001' }
