@@ -28,7 +28,7 @@ jobs:
     outputs:
       image-tag: ${{ steps.vars.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -49,7 +49,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Build y push — backend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: apps/backend
           push: true
@@ -60,7 +60,7 @@ jobs:
           cache-to: type=inline
 
       - name: Build y push — frontend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: apps/frontend
           push: true
@@ -101,4 +101,4 @@ jobs:
       - name: Verificar salud del backend
         run: |
           sleep 20
-          curl --fail "https://${BACKEND_APP_NAME}.azurewebsites.net/docs" || (echo "Backend no respondio" && exit 1)
+          curl --fail "https://${BACKEND_APP_NAME}.azurewebsites.net/health" || (echo "Backend no respondio" && exit 1)

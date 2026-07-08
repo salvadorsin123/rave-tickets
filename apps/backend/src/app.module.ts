@@ -14,9 +14,11 @@ import { EscaneosModule } from '@modules/escaneos.module';
 import { DashboardModule } from '@modules/dashboard.module';
 import { ReportesModule } from '@modules/reportes.module';
 import { AuditoriaModule } from '@modules/auditoria.module';
+import { HealthController } from '@presentation/controllers/health.controller';
 import { validarEnv } from './config/validar-env';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validarEnv }),
     ThrottlerModule.forRootAsync({
