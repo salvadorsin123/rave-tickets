@@ -18,8 +18,9 @@ export function middleware(request: NextRequest): NextResponse {
   const payload = accessToken ? decodeAccessToken(accessToken) : null;
   const autenticado = Boolean(payload ?? refreshToken);
 
-  if (pathname === '/login') {
-    if (autenticado && payload) {
+  // Rutas públicas (no requieren autenticación)
+  if (pathname === '/login' || pathname.startsWith('/legal')) {
+    if (pathname === '/login' && autenticado && payload) {
       return NextResponse.redirect(new URL(rutaHomeDe(payload.rol), request.url));
     }
     return NextResponse.next();

@@ -1,9 +1,10 @@
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-grid px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-grid px-4">
       <div className="w-full max-w-sm rounded-2xl border border-base-700 bg-base-900/90 p-8 shadow-neon">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           {/* Chip blanco: el logo es negro sobre transparente y el fondo de la tarjeta es casi negro. */}
@@ -16,6 +17,25 @@ export default function LoginPage() {
         <Suspense fallback={null}>
           <LoginForm />
         </Suspense>
+      </div>
+
+      {/* Legal links footer */}
+      <div className="mt-8 flex flex-wrap justify-center gap-3 text-center text-xs text-base-400">
+        <Link href="/legal/terminos" className="text-neon-violet transition-colors hover:text-neon-cyan">
+          Términos
+        </Link>
+        <span className="text-base-600">•</span>
+        <Link href="/legal/privacidad" className="text-neon-violet transition-colors hover:text-neon-cyan">
+          Privacidad
+        </Link>
+        <span className="text-base-600">•</span>
+        <Link href="/legal/seguridad" className="text-neon-violet transition-colors hover:text-neon-cyan">
+          Seguridad
+        </Link>
+        <span className="text-base-600">•</span>
+        <Link href="/legal/cookies" className="text-neon-violet transition-colors hover:text-neon-cyan">
+          Cookies
+        </Link>
       </div>
     </div>
   );
