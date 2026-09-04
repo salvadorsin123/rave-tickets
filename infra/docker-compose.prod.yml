@@ -1,0 +1,109 @@
+# Stack de produccion: PostgreSQL + MinIO + backend + frontend, con un tunel de Cloudflare
+# como unico punto de entrada publico. Ningun contenedor publica puertos al host, asi que
+# el servidor no necesita puertos de entrada abiertos: cloudflared abre una conexion
+# saliente hacia Cloudflare. Ver docs/07-despliegue-oracle.md para el runbook completo.
+#
+# Uso (en el servidor):
+#   cd infra
+#   cp .env.prod.example .env.prod   # llenar con secretos reales, nunca commitear
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rave
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env.prod}
+      POSTGRES_DB: ravedb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rave -d ravedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?falta MINIO_ROOT_USER en .env.prod}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?falta MINIO_ROOT_PASSWORD en .env.prod}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ../apps/backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: "production"
+      DATABASE_URL: "postgresql://rave:${DB_PASSWORD}@db:5432/ravedb"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?falta JWT_ACCESS_SECRET en .env.prod}
+      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?falta JWT_REFRESH_SECRET en .env.prod}
+      JWT_REFRESH_EXPIRES_IN: "7d"
+      PORT: "3001"
+      CORS_ORIGIN: "https://${PUBLIC_HOSTNAME:?falta PUBLIC_HOSTNAME en .env.prod}"
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      # Trafico interno de la red de docker, no sale del servidor: TLS aqui solo agregaria
+      # complejidad de certificados sin ganancia real.
+      MINIO_USE_SSL: "false"
+      # Llave de servicio acotada al bucket, NO las credenciales root de MinIO.
+      # Se crea una sola vez con `mc admin user add` (ver runbook, seccion 7).
+      MINIO_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:?falta MINIO_APP_ACCESS_KEY en .env.prod}
+      MINIO_SECRET_KEY: ${MINIO_APP_SECRET_KEY:?falta MINIO_APP_SECRET_KEY en .env.prod}
+      MINIO_BUCKET: "boletos-pdf"
+      THROTTLE_TTL: "60"
+      THROTTLE_LIMIT: "100"
+    healthcheck:
+      # /health no toca la base ni el storage: responde si el proceso Nest esta vivo.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # Sin "ports": el backend solo es alcanzable desde el frontend dentro de la red
+    # interna de docker compose, nunca directo desde internet.
+
+  frontend:
+    build:
+      context: ../apps/frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: "http://backend:3001"
+      ACCESS_TOKEN_MAX_AGE_SECONDS: "900"
+      REFRESH_TOKEN_MAX_AGE_SECONDS: "604800"
+      PORT: "3000"
+    # Tampoco publica puertos: cloudflared lo alcanza por DNS interno (http://frontend:3000).
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?falta CLOUDFLARE_TUNNEL_TOKEN en .env.prod}
+    depends_on:
+      - frontend
+
+volumes:
+  postgres-data:
+  minio-data:

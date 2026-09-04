@@ -10,8 +10,8 @@ coverage/
 .env.*.local
 
 # Secretos de despliegue (plantillas .example si quedan versionadas)
-infra/azure/bicep/main.parameters.json
 infra/.env
+infra/.env.prod
 
 # Editores / OS
 .vscode/

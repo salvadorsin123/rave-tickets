@@ -48,7 +48,7 @@
 
 | ID | Caso de uso | Disparador | Acción |
 |---|---|---|---|
-| UC-29 | Generar boleto | Al guardar una venta (UC-06) | Crea folio único, UUID, token de validación, PDF con QR embebido, guarda copia en Blob Storage |
+| UC-29 | Generar boleto | Al guardar una venta (UC-06) | Crea folio único, UUID, token de validación, PDF con QR embebido, guarda copia en el almacenamiento de objetos |
 | UC-30 | Actualizar estadísticas | Cada venta o escaneo | Recalcula contadores de dashboard (ventas, ingresos, asistencia) |
 | UC-31 | Detectar boleto duplicado/fraude | Al escanear un boleto ya "Utilizado" o con token inválido reutilizado | Marca el intento en bitácora, puede sugerir bloqueo por fraude |
 | UC-32 | Registrar en bitácora de auditoría | Cualquier mutación (crear/editar/cancelar/escanear) | Inserta registro con usuario, acción, entidad, timestamp, IP |

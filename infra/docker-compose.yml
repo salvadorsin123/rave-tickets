@@ -1,41 +1,47 @@
-# Stack de desarrollo/demo local. Para produccion, el despliegue real ocurre en Azure
-# (App Service + Azure SQL + Blob Storage) via .github/workflows/deploy.yml — ver
-# docs/07-despliegue-azure.md. Este compose existe para correr todo el sistema en una
-# laptop sin depender de servicios de Azure.
+# Stack de desarrollo/demo local: PostgreSQL + MinIO + backend + frontend. Es el mismo
+# stack que produccion (ver docker-compose.prod.yml y docs/07-despliegue-oracle.md), pero
+# con puertos publicados al host, NODE_ENV=development y secretos de ejemplo.
 #
 # Uso:
 #   cd infra
 #   docker compose up --build
-#   (primer arranque: el backend corre `prisma db push` automaticamente, ver mas abajo)
 
 services:
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: postgres:16-alpine
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:-R4ve!DevPassw0rd}
-      MSSQL_PID: Developer
+      POSTGRES_USER: rave
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-R4veDevPassw0rd}
+      POSTGRES_DB: ravedb
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - mssql-data:/var/opt/mssql
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U rave -d ravedb"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 10s
 
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
-    # --skipApiVersionCheck: el SDK @azure/storage-blob instalado envia una version de API
-    # de servicio mas nueva que la que esta imagen de Azurite reconoce. Solo afecta al
-    # emulador local; Azure Blob Storage real siempre soporta la version mas reciente.
-    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck"
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "10000:10000"
+      # 9000 = API S3, 9001 = consola web para inspeccionar los objetos subidos.
+      - "9000:9000"
+      - "9001:9001"
     volumes:
-      - azurite-data:/data
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   backend:
     build:
@@ -43,37 +49,40 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      azurite:
-        condition: service_started
+      minio:
+        condition: service_healthy
     environment:
       # Stack local/demo: se marca explicitamente como development (la imagen fija
       # NODE_ENV=production por defecto). Asi la validacion de arranque acepta los secretos
-      # de ejemplo de abajo y Swagger queda disponible en /docs. El despliegue real en Azure
-      # corre como production, donde esos secretos de ejemplo hacen fallar el arranque.
+      # de ejemplo de abajo y Swagger queda disponible en /docs. El despliegue real corre
+      # como production, donde esos secretos de ejemplo hacen fallar el arranque.
       NODE_ENV: "development"
-      DATABASE_URL: "sqlserver://db:1433;database=RaveDb;user=sa;password=${DB_SA_PASSWORD:-R4ve!DevPassw0rd};encrypt=true;trustServerCertificate=true"
+      DATABASE_URL: "postgresql://rave:${DB_PASSWORD:-R4veDevPassw0rd}@db:5432/ravedb"
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-cambiar}
       JWT_ACCESS_EXPIRES_IN: "15m"
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-cambiar}
       JWT_REFRESH_EXPIRES_IN: "7d"
       PORT: "3001"
       CORS_ORIGIN: "http://localhost:3000"
-      AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
-      AZURE_STORAGE_CONTAINER: "boletos-pdf"
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: "boletos-pdf"
       THROTTLE_TTL: "60"
       THROTTLE_LIMIT: "100"
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@rave.local}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-CambiameYa123!}
     ports:
       - "3001:3001"
-    # Override del entrypoint de la imagen: todavia no hay migraciones commiteadas en
-    # prisma/migrations (requieren generarse una vez con `prisma migrate dev` contra una
-    # base real, ver docs/07-despliegue-azure.md). Para desarrollo local, `db push`
-    # sincroniza el schema directamente sin necesitar archivos de migracion.
+    # Override del entrypoint de la imagen: aplica las migraciones igual que en produccion
+    # y ademas siembra roles, permisos y el usuario administrador (el seed es idempotente,
+    # usa upsert, asi que puede correr en cada arranque).
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        npx prisma db push --skip-generate &&
+        npx prisma migrate deploy &&
         npx prisma db seed &&
         node dist/main.js
 
@@ -91,5 +100,5 @@ services:
       - "3000:3000"
 
 volumes:
-  mssql-data:
-  azurite-data:
+  postgres-data:
+  minio-data:

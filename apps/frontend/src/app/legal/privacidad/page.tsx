@@ -94,7 +94,9 @@ Para contacto sobre privacidad: [CORREO DE CONTACTO/PRIVACIDAD]`}</p>
           <div className="rounded-lg bg-base-800/50 p-4">
             <h3 className="mb-2 font-semibold text-neon-violet">Proveedores de Infraestructura</h3>
             <p className="text-sm text-base-300">
-              Microsoft Azure: Almacenamiento seguro de boletos en PDF en servidores en la nube. Cumple con estándares internacionales (ISO 27001, SOC 2).
+              Oracle Cloud Infrastructure: alojamiento del servidor donde residen la base de datos y los boletos en PDF.
+              Cloudflare: red que enruta y protege el tráfico hacia la Plataforma. Ambos proveedores cumplen estándares
+              internacionales (ISO 27001, SOC 2).
             </p>
           </div>
 
@@ -172,7 +174,7 @@ Después del plazo aplicable, eliminaremos o anonimizaremos tus datos, salvo que
         <ul className="ml-6 space-y-2 text-base-300">
           <li>• Encriptación: SSL/TLS de grado empresarial para datos en tránsito.</li>
           <li>• Control de acceso: Solo personal autorizado puede acceder a datos personales.</li>
-          <li>• Almacenamiento seguro: Azure con encriptación en reposo y backups regulares.</li>
+          <li>• Almacenamiento seguro: servidor en Oracle Cloud con encriptación en reposo y respaldos regulares.</li>
           <li>• Auditoría: Se registra toda acción sobre datos personales.</li>
           <li>• Políticas internas: Todo personal recibe capacitación en protección de datos.</li>
         </ul>

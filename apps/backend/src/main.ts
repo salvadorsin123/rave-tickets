@@ -9,7 +9,8 @@ import { HttpExceptionFilter } from '@presentation/filters/http-exception.filter
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  // Confia solo en el primer salto (el proxy de Azure App Service) para que
+  // Confia solo en el primer salto (el proxy que tiene delante: cloudflared en
+  // produccion, el frontend de Next en el stack local) para que
   // request.ip resuelva la IP real del cliente desde X-Forwarded-For en vez
   // de la IP interna del balanceador. 'true' confiaria en toda la cadena,
   // lo que un cliente podria falsificar.

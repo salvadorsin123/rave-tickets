@@ -21,7 +21,7 @@ graph TD
     end
     subgraph Infrastructure
         PR[Prisma Repositories]
-        BLOB[Azure Blob Storage]
+        BLOB[MinIO (S3)]
         PDF[PDFKit Generator]
         QR[QR Generator]
         JWT[JWT/Bcrypt]
@@ -118,8 +118,8 @@ sequenceDiagram
     participant TicketUC as GenerarBoletoUseCase
     participant PDF as PDFGenerator
     participant QR as QRGenerator
-    participant Blob as AzureBlobStorage
-    participant DB as AzureSQL
+    participant Blob as MinIO
+    participant DB as PostgreSQL
 
     Admin->>FE: Completa formulario de venta
     FE->>API: POST /api/v1/ventas

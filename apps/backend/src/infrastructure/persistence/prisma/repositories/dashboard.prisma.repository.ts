@@ -14,7 +14,7 @@ import { PrismaService } from '../prisma.service';
 /**
  * Las agregaciones por dia/hora se calculan en memoria sobre el conjunto de
  * ventas del filtro solicitado (acotado por evento). Para volumenes muy
- * grandes esto se puede migrar a consultas agregadas nativas de Azure SQL
+ * grandes esto se puede migrar a consultas agregadas nativas de PostgreSQL
  * (ver plan de escalabilidad en docs/01-arquitectura.md).
  */
 @Injectable()

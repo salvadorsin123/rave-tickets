@@ -14,7 +14,7 @@ RAVE Tickets is an internal operations platform for event organizers. There is *
 
 1. **Admin creates an event** with name, date, venue, and optional logo/banner.
 2. **Admin registers a sale** — buyer name, optional email, number of people on the ticket.
-3. **System generates a PDF ticket** with a unique QR code and stores it in Azure Blob Storage.
+3. **System generates a PDF ticket** with a unique QR code and stores it in S3-compatible object storage (MinIO).
 4. **Admin downloads or resends the PDF** to the buyer via any channel.
 5. **Scanner opens the scanner view on their phone** and scans QR codes at the venue entrance.
 6. **System validates in real time** — green screen for valid, red for already used or invalid.
@@ -74,16 +74,16 @@ Each ticket tracks people independently: a ticket for 5 people can be scanned 3 
 |---|---|
 | Frontend | Next.js 14 (App Router), React, TypeScript, Tailwind CSS |
 | Backend | NestJS, TypeScript, Prisma ORM |
-| Database | Azure SQL Database (SQL Server 2022 locally via Docker) |
-| File storage | Azure Blob Storage (Azurite locally via Docker) |
+| Database | PostgreSQL 16 (Docker) |
+| File storage | MinIO, S3-compatible (Docker) |
 | PDF generation | PDFKit |
 | QR generation | `qrcode` |
 | QR scanning | `html5-qrcode` |
 | Charts | Recharts |
 | Auth | `passport-jwt`, `jose` |
 | CI/CD | GitHub Actions |
-| Container registry | Azure Container Registry |
-| Hosting | Azure App Service |
+| Ingress / TLS | Cloudflare Tunnel (`cloudflared`) |
+| Hosting | Docker Compose on an Oracle Cloud "Always Free" ARM VM |
 
 The backend follows **Clean Architecture** (hexagonal): domain entities and use-cases have zero framework dependencies, with NestJS and Prisma living exclusively in the infrastructure layer.
 
@@ -98,7 +98,7 @@ rave-tickets/
 │   │   ├── src/
 │   │   │   ├── domain/        # Entities, value objects, enums
 │   │   │   ├── application/   # Use cases, ports (interfaces)
-│   │   │   ├── infrastructure/# Prisma repos, PDF/Excel/QR services, Azure Storage
+│   │   │   ├── infrastructure/# Prisma repos, PDF/Excel/QR services, S3 storage
 │   │   │   └── presentation/  # NestJS controllers, guards, DTOs
 │   │   └── prisma/
 │   │       ├── schema.prisma
@@ -110,12 +110,12 @@ rave-tickets/
 │           ├── (admin)/       # Dashboard, events, sales, tickets, users, reports
 │           └── scanner/       # QR scanner view
 ├── infra/
-│   ├── docker-compose.yml     # Local dev stack
-│   └── azure/bicep/           # IaC for Azure provisioning
+│   ├── docker-compose.yml      # Local dev stack
+│   ├── docker-compose.prod.yml # Production stack (no published ports + cloudflared)
+│   └── respaldar.sh            # Daily backup of Postgres + MinIO
 ├── docs/                      # Architecture, data model, UML, wireframes, deploy guide
 └── .github/workflows/
-    ├── ci.yml                 # Lint + typecheck + test + build
-    └── deploy.yml             # Build images → ACR → deploy to App Service
+    └── ci.yml                 # Lint + typecheck + test + build
 ```
 
 ---
@@ -159,11 +159,12 @@ Default credentials (change after first login):
 
 | Variable | Description | Default (dev) |
 |---|---|---|
-| `DATABASE_URL` | SQL Server connection string | *(set by docker-compose)* |
+| `DATABASE_URL` | PostgreSQL connection string | *(set by docker-compose)* |
 | `JWT_ACCESS_SECRET` | Secret for access tokens | `dev-access-secret-cambiar` |
 | `JWT_REFRESH_SECRET` | Secret for refresh tokens | `dev-refresh-secret-cambiar` |
-| `AZURE_STORAGE_CONNECTION_STRING` | Blob Storage connection | Azurite emulator |
-| `AZURE_STORAGE_CONTAINER` | Container name for PDFs | `boletos-pdf` |
+| `MINIO_ENDPOINT` / `MINIO_PORT` | S3 endpoint for object storage | `minio` / `9000` |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | S3 credentials | `minioadmin` |
+| `MINIO_BUCKET` | Bucket for PDFs and event images | `boletos-pdf` |
 | `CORS_ORIGIN` | Allowed origin | `http://localhost:3000` |
 | `THROTTLE_TTL` | Rate limit window (seconds) | `60` |
 | `THROTTLE_LIMIT` | Max requests per window | `100` |
@@ -174,7 +175,7 @@ Default credentials (change after first login):
 
 | Variable | Description |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | Backend base URL |
+| `BACKEND_URL` | Backend base URL, used server-side only. The browser always talks to `/api/proxy/*` on the Next.js server (BFF pattern), so the backend is never exposed publicly. |
 
 ---
 
@@ -191,7 +192,7 @@ npm run test:cov      # with coverage report
 
 ## CI/CD
 
-Every push to `main` triggers the CI workflow (lint → typecheck → tests → build for both apps). On success, the deploy workflow builds Docker images, pushes them to Azure Container Registry, and deploys to Azure App Service. Migrations run automatically when the backend container starts (`prisma migrate deploy`).
+Every push to `main` triggers the CI workflow (lint → typecheck → tests → build for both apps, plus a Docker build of both images). Deployment is a pull, not a push: on the server you run `git pull` and rebuild the Compose stack — see the [deployment guide](docs/07-despliegue-oracle.md). Migrations run automatically when the backend container starts (`prisma migrate deploy`).
 
 ---
 
@@ -221,7 +222,7 @@ Detailed documentation lives in [`/docs`](docs/):
 - [UML diagrams](docs/04-diagramas-uml.md)
 - [Folder structure](docs/05-estructura-de-carpetas.md)
 - [Wireframes](docs/06-wireframes.md)
-- [Azure deployment guide](docs/07-despliegue-azure.md)
+- [Deployment guide (Oracle Cloud + Cloudflare Tunnel)](docs/07-despliegue-oracle.md)
 - [Security & scalability](docs/08-seguridad-y-escalabilidad.md)
 
 ---

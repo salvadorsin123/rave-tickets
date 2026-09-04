@@ -3,8 +3,9 @@
 # ---- deps: instala TODAS las dependencias (incluye devDependencies, necesarias para el build) ----
 FROM node:20-bookworm-slim AS deps
 # El motor de Prisma (schema/query engine) necesita libssl/openssl; "bookworm-slim" no lo trae.
-# ca-certificates es necesario para validar el certificado TLS de Azure SQL al conectar
-# (sin esto, prisma falla con P1011 "unable to get local issuer certificate").
+# ca-certificates es necesario para validar certificados TLS al conectar a una base
+# gestionada externa (sin esto, prisma falla con P1011 "unable to get local issuer
+# certificate"); con el Postgres del propio stack la conexion va por la red interna.
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./

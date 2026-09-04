@@ -75,12 +75,15 @@ con nadie. Si sospechas que tu cuenta ha sido comprometida, cambia tu contraseñ
 
       <section className="space-y-4 border-t border-base-700 pt-6">
         <h2 className="text-xl font-semibold text-neon-cyan">6. Almacenamiento Seguro de Datos</h2>
-        <p className="text-base-300">Infraestructura en la nube: Los datos se almacenan en Microsoft Azure:</p>
+        <p className="text-base-300">
+          Infraestructura en la nube: los datos se alojan en un servidor dedicado de Oracle Cloud Infrastructure (OCI),
+          administrado por la Empresa:
+        </p>
         <ul className="ml-6 space-y-2 text-base-300">
-          <li>• Certificaciones: ISO 27001 (Gestión de Seguridad), SOC 2 Type II</li>
-          <li>• Encriptación en reposo automática en servidores de Azure</li>
-          <li>• Redundancia y backup: Copias en múltiples ubicaciones geográficas</li>
-          <li>• Aislamiento de datos: Almacenamiento en bases de datos dedicadas</li>
+          <li>• Centros de datos de OCI con certificaciones ISO 27001 y SOC 2</li>
+          <li>• Encriptación en reposo del volumen de almacenamiento a nivel de plataforma</li>
+          <li>• Aislamiento de datos: base de datos y almacenamiento de archivos dedicados, sin puertos públicos</li>
+          <li>• Respaldos periódicos administrados por la Empresa, con copia fuera del servidor</li>
         </ul>
       </section>
 
@@ -119,7 +122,8 @@ con nadie. Si sospechas que tu cuenta ha sido comprometida, cambia tu contraseñ
           <div className="rounded-lg bg-base-800/50 p-4">
             <h3 className="mb-2 font-semibold text-neon-violet">DDoS (Denegación de Servicio Distribuido)</h3>
             <p className="text-sm text-base-300">
-              La infraestructura de Azure incluye protección contra ataques DDoS con límites de tasa y filtros.
+              Todo el tráfico entra a través de Cloudflare, que aporta protección contra ataques DDoS, sumada a los
+              límites de tasa que aplica la propia Plataforma.
             </p>
           </div>
 

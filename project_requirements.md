@@ -1,5 +1,12 @@
 # Sistema Completo de Venta y Validación de Entradas para Rave (Azure)
 
+> **Nota histórica:** este es el enunciado original del proyecto y se conserva sin cambios
+> como referencia de los requisitos funcionales. La infraestructura descrita aquí (Azure SQL,
+> Blob Storage, App Service, Key Vault, Application Insights) ya **no** es la que se usa: el
+> sistema migró a PostgreSQL + MinIO sobre Docker Compose en una VM de Oracle Cloud, con
+> Cloudflare Tunnel como ingreso. Ver `docs/01-arquitectura.md` y
+> `docs/07-despliegue-oracle.md` para la infraestructura vigente.
+
 Actúa como un Arquitecto de Software Senior, Full Stack Developer y Especialista en Microsoft Azure.
 
 Necesito que diseñes y desarrolles una aplicación web completa para la gestión de venta y validación de entradas para eventos tipo rave.

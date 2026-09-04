@@ -25,7 +25,7 @@ RAVE/
 │   │   │   │   │   └── prisma/
 │   │   │   │   │       ├── schema.prisma
 │   │   │   │   │       └── repositories/
-│   │   │   │   ├── storage/        # Azure Blob Storage
+│   │   │   │   ├── storage/        # MinIO (API S3)
 │   │   │   │   ├── pdf/            # PDFKit
 │   │   │   │   ├── qr/             # qrcode
 │   │   │   │   └── auth/           # JWT, bcrypt
@@ -82,17 +82,15 @@ RAVE/
 │       └── package.json
 │
 ├── infra/
-│   ├── docker-compose.yml
-│   ├── azure/
-│   │   ├── bicep/ (o terraform/)   # IaC para App Service, SQL, Blob, Key Vault
-│   │   └── pipelines/
-│   └── sql/
-│       └── migrations/
+│   ├── docker-compose.yml          # Stack local de desarrollo
+│   ├── docker-compose.prod.yml     # Stack de produccion (sin puertos publicados + cloudflared)
+│   ├── .env.example                # Plantilla del stack local
+│   ├── .env.prod.example           # Plantilla de secretos de produccion
+│   └── respaldar.sh                # Respaldo de PostgreSQL + MinIO
 │
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml                  # Build + Test
-│       └── deploy.yml              # Deploy a Azure
+│       └── ci.yml                  # Build + Test
 │
 ├── docs/                           # Esta carpeta — documentación de arquitectura
 ├── project_requirements.md

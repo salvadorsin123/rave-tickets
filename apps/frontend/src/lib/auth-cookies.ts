@@ -12,7 +12,7 @@ export const REFRESH_TOKEN_MAX_AGE_SECONDS = Number(process.env.REFRESH_TOKEN_MA
  * NODE_ENV=production no implica HTTPS: en docker-compose local el sitio se sirve por HTTP
  * plano con esa misma env var. Un navegador real descarta silenciosamente las cookies
  * `Secure` servidas sobre HTTP, rompiendo la sesion sin error visible. Por eso la deteccion
- * de HTTPS se hace por request (cabecera que pone el proxy de Azure), no por NODE_ENV.
+ * de HTTPS se hace por request (cabecera que pone el tunel de Cloudflare), no por NODE_ENV.
  */
 export function esConexionSegura(request: NextRequest): boolean {
   return request.headers.get('x-forwarded-proto') === 'https' || request.nextUrl.protocol === 'https:';

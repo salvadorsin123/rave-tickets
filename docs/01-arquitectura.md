@@ -4,7 +4,7 @@
 
 Sistema monolito modular dividido en dos aplicaciones desplegables de forma independiente:
 
-- **Backend** (NestJS + TypeScript + Prisma + Azure SQL) — API REST, lógica de negocio, generación de PDF/QR, autenticación.
+- **Backend** (NestJS + TypeScript + Prisma + PostgreSQL) — API REST, lógica de negocio, generación de PDF/QR, autenticación.
 - **Frontend** (Next.js + React + TypeScript + Tailwind) — Dashboard administrativo y vista de escaneo (PWA-ready para cámara móvil).
 
 No existe portal de comprador. Todo el flujo de venta es manual, operado por el Administrador.
@@ -21,10 +21,10 @@ apps/backend/src/
 │   ├── use-cases/
 │   ├── ports/
 │   └── dtos/
-├── infrastructure/       # Implementaciones concretas: Prisma, Azure Blob, JWT, PDF, QR
+├── infrastructure/       # Implementaciones concretas: Prisma, storage S3, JWT, PDF, QR
 │   ├── persistence/
 │   │   └── prisma/
-│   ├── storage/          # Azure Blob Storage
+│   ├── storage/          # MinIO (API S3)
 │   ├── pdf/              # PDFKit
 │   ├── qr/               # qrcode
 │   └── auth/
@@ -84,17 +84,21 @@ El **Escaneador** usa exclusivamente la ruta `/escanear`, con UI minimalista de 
 - **Auditoría**: interceptor global que escribe en `BitacoraAuditoria` en cada mutación (crear/editar/cancelar/reembolsar/escanear).
 - **QR sin datos sensibles**: el payload del QR es `{ uuid, token }`; el token de validación es un secreto aleatorio (≥128 bits) almacenado con hash en BD, nunca el dato en claro fuera del PDF.
 
-## 6. Infraestructura Azure (alto nivel — detalle en Fase 4)
+## 6. Infraestructura (alto nivel — runbook completo en `docs/07-despliegue-oracle.md`)
 
-| Componente | Servicio Azure |
+Todo el sistema corre como un solo stack de Docker Compose en una VM ARM "Always Free"
+de Oracle Cloud. Ningún contenedor publica puertos al host: el único ingreso público es
+el túnel de Cloudflare, que sale desde la VM (no hay puertos de entrada abiertos).
+
+| Componente | Implementación |
 |---|---|
-| Frontend | Azure Static Web Apps |
-| Backend | Azure App Service (contenedor Linux) |
-| Base de datos | Azure SQL Database |
-| Almacenamiento de PDFs | Azure Blob Storage |
-| Secretos | Azure Key Vault |
-| Monitoreo | Azure Application Insights |
-| CI/CD | GitHub Actions → Build/Test/Deploy |
+| Frontend | Contenedor Next.js (standalone) |
+| Backend | Contenedor NestJS |
+| Base de datos | Contenedor PostgreSQL 16 con volumen persistente |
+| Almacenamiento de PDFs | Contenedor MinIO (API S3) con volumen persistente |
+| Secretos | Archivo `infra/.env.prod` en el servidor (fuera del repositorio) |
+| Ingreso público / TLS | Cloudflare Tunnel (`cloudflared`) |
+| CI/CD | GitHub Actions (build/test); despliegue por `git pull` en el servidor |
 
 ## 7. Comunicación Frontend-Backend
 
@@ -104,7 +108,7 @@ El **Escaneador** usa exclusivamente la ruta `/escanear`, con UI minimalista de 
 
 ## 8. Escalabilidad (resumen — plan completo en Fase 4)
 
-- Backend stateless → permite escalar horizontalmente en App Service (autoscale por CPU/memoria).
+- Backend stateless → permite correr varias réplicas del contenedor detrás del mismo túnel.
 - Índices en `Boleto.tokenValidacion`, `Boleto.folio`, `Venta.eventoId` para soportar escaneo masivo concurrente.
-- Caché opcional (Redis/Azure Cache) para validación de QR en eventos masivos, con invalidación inmediata al registrar ingreso.
-- Generación de PDF/QR puede moverse a un *worker* asíncrono (Azure Queue + Function) si el volumen de ventas lo justifica.
+- Caché opcional (contenedor Redis) para validación de QR en eventos masivos, con invalidación inmediata al registrar ingreso.
+- Generación de PDF/QR puede moverse a un *worker* asíncrono (cola en Redis + contenedor worker) si el volumen de ventas lo justifica.

@@ -178,7 +178,7 @@ erDiagram
 | personasCompradas | int | NOT NULL, CHECK > 0 |
 | personasIngresadas | int | NOT NULL, default 0, CHECK >= 0 |
 | estado | varchar(30) | NOT NULL, CHECK IN ('Pendiente','ParcialmenteUtilizado','Utilizado','Cancelado','Reembolsado','BloqueadoPorFraude') |
-| pdfUrl | varchar(500) | NULL (ruta en Azure Blob Storage) |
+| pdfUrl | varchar(500) | NULL (ruta del objeto en MinIO) |
 | createdAt / updatedAt | datetime2 | NOT NULL |
 
 Restricción adicional: `personasIngresadas <= personasCompradas` (CHECK o validación en aplicación).

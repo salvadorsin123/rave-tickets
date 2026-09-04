@@ -47,6 +47,27 @@ describe('validarEnv', () => {
     ).toThrow(/distintos/);
   });
 
+  it('en produccion rechaza la credencial de ejemplo de MinIO', () => {
+    expect(() =>
+      validarEnv({
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: SECRETO_FUERTE_A,
+        JWT_REFRESH_SECRET: SECRETO_FUERTE_B,
+        MINIO_SECRET_KEY: 'minioadmin',
+      }),
+    ).toThrow(/MINIO_SECRET_KEY/);
+  });
+
+  it('fuera de produccion acepta la credencial de ejemplo de MinIO', () => {
+    const config = {
+      NODE_ENV: 'development',
+      JWT_ACCESS_SECRET: SECRETO_FUERTE_A,
+      JWT_REFRESH_SECRET: SECRETO_FUERTE_B,
+      MINIO_SECRET_KEY: 'minioadmin',
+    };
+    expect(() => validarEnv(config)).not.toThrow();
+  });
+
   it('en produccion acepta secretos fuertes y distintos', () => {
     const config = {
       NODE_ENV: 'production',
