@@ -1,0 +1,15 @@
+# Normaliza los finales de linea a LF en el repositorio y tambien al hacer checkout.
+# Sin esto, en Windows git convierte a CRLF al escribir el working tree, lo que rompe
+# dos cosas: prettier falla el lint, y los scripts .sh copiados a una imagen Docker
+# fallan en Linux con "bad interpreter: /bin/sh^M".
+* text=auto eol=lf
+
+# Binarios: git no debe tocarlos.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
