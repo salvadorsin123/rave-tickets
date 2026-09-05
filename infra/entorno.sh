@@ -85,3 +85,51 @@ compose() {
 leer_env() {
   sed -n "s/^$1=//p" "$ENV_FILE" | head -1
 }
+
+# Confirma desde INTERNET que el dominio publico ya sirve la version esperada. Es la unica
+# verificacion que recorre la cadena completa (Cloudflare -> caddy -> frontend); las de
+# adentro del servidor no prueban que el trafico real llegue.
+#
+# Reintenta porque Cloudflare tarda un momento en propagar la conmutacion.
+verificar_externa() {
+  ve_host=$1
+  ve_esperada=$2
+  ve_cuerpo=$(mktemp)
+  ve_intento=1
+
+  while [ "$ve_intento" -le 10 ]; do
+    ve_meta=$(curl -s -o "$ve_cuerpo" -w '%{http_code}|%{redirect_url}' --max-time 10 \
+      "https://$ve_host/api/health" 2>/dev/null || echo "000|")
+    ve_respuesta=$(cat "$ve_cuerpo")
+
+    case "$ve_respuesta" in
+      *"\"version\":\"$ve_esperada\""*)
+        echo "    OK: $ve_respuesta"
+        rm -f "$ve_cuerpo"
+        return 0
+        ;;
+    esac
+
+    # Cloudflare Access protege PRE, y por defecto tambien intercepta esta sonda: en vez de
+    # el JSON responde una redireccion al login. Sin este caso el script reintentaria diez
+    # veces y culparia al despliegue de un problema de configuracion del borde.
+    case "$ve_meta" in
+      *cloudflareaccess*)
+        rm -f "$ve_cuerpo"
+        echo "ERROR: Cloudflare Access esta interceptando /api/health en $ve_host." >&2
+        echo "       Crea en Access una aplicacion sobre '$ve_host/api/health' con politica" >&2
+        echo "       Bypass / Everyone: la ruta mas especifica gana sobre la del dominio, y" >&2
+        echo "       esa sonda solo expone el nombre del entorno y el sha desplegado." >&2
+        return 1
+        ;;
+    esac
+
+    ve_intento=$((ve_intento + 1))
+    sleep 3
+  done
+
+  rm -f "$ve_cuerpo"
+  echo "ERROR: tras 10 intentos, $ve_host no devuelve la version $ve_esperada" >&2
+  echo "       Ultima respuesta (HTTP ${ve_meta%%|*}): ${ve_respuesta:-<vacia>}" >&2
+  return 1
+}

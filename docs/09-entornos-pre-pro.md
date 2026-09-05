@@ -199,6 +199,7 @@ propio repositorio, y el wrapper valida el entorno y el sha antes de actuar.
 | Falla en "verificando la version" | El color nuevo levantó con otra imagen. No se conmutó nada: el sitio sigue bien. Revisa qué tag se pidió. |
 | Falla en la verificación externa | Caddy **ya** conmutó. Si el sitio está caído, `./infra/revertir.sh <entorno>`. Suele ser el túnel apuntando al servicio equivocado: debe ser `http://caddy:80`, no `frontend:3000`. |
 | La sesión se cae al recargar, solo tras meter Caddy | Caddy está pisando `X-Forwarded-Proto` y el frontend deja de marcar las cookies como `Secure`. Verifica que el Caddyfile tenga `trusted_proxies static private_ranges`. |
+| El despliegue a PRE falla diciendo que Access intercepta `/api/health` | Falta la aplicación de Access sobre `pre.in-fluence.party/api/health` con política **Bypass / Everyone** (sección 5 del runbook). Sin ella, Access responde el login en vez del JSON y la verificación externa nunca puede pasar. |
 | `revertir.sh` dice que el color anterior no está corriendo | Ya hubo dos despliegues. Usa el workflow **Desplegar (manual)** con el sha al que quieres volver. |
 | PRE quedó inconsistente | Es desechable: `clonar-pro-a-pre.sh` lo reconstruye desde producción. |
 | El job de PRO no arranca | Está esperando aprobación. Pestaña Actions → el run → *Review deployments*. |

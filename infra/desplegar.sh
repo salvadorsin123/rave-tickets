@@ -92,24 +92,10 @@ compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 # La prueba que de verdad importa: la cadena completa Cloudflare -> caddy -> frontend
 # devolviendo el sha nuevo desde fuera del servidor.
 echo "==> verificando https://$HOSTNAME_PUBLICO/api/health"
-INTENTO=1
-while [ "$INTENTO" -le 10 ]; do
-  EXTERNA=$(curl -fsS --max-time 10 "https://$HOSTNAME_PUBLICO/api/health" 2>/dev/null || echo "")
-  case "$EXTERNA" in
-    *"\"version\":\"$SHA\""*)
-      echo "    OK: $EXTERNA"
-      break
-      ;;
-  esac
-  [ "$INTENTO" -lt 10 ] || {
-    echo "ERROR: tras 10 intentos, $HOSTNAME_PUBLICO no devuelve la version $SHA" >&2
-    echo "       Respuesta: ${EXTERNA:-<sin respuesta>}" >&2
-    echo "       Caddy YA apunta a $DESTINO. Si el sitio esta caido: ./revertir.sh $ENTORNO" >&2
-    exit 1
-  }
-  INTENTO=$((INTENTO + 1))
-  sleep 3
-done
+if ! verificar_externa "$HOSTNAME_PUBLICO" "$SHA"; then
+  echo "       Caddy YA apunta a $DESTINO. Si el sitio esta caido: ./revertir.sh $ENTORNO" >&2
+  exit 1
+fi
 
 # --- 8. Registrar el estado ---------------------------------------------------
 COLOR_ANTERIOR=${COLOR_ACTIVO:-}

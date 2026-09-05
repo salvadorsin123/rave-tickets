@@ -49,16 +49,7 @@ printf 'reverse_proxy frontend-%s:3000\n' "$ANTERIOR" > "$ARCHIVO_UPSTREAM"
 compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 
 echo "==> verificando https://$HOSTNAME_PUBLICO/api/health"
-INTENTO=1
-while [ "$INTENTO" -le 10 ]; do
-  EXTERNA=$(curl -fsS --max-time 10 "https://$HOSTNAME_PUBLICO/api/health" 2>/dev/null || echo "")
-  case "$EXTERNA" in
-    *"\"version\":\"$VERSION\""*) echo "    OK: $EXTERNA"; break ;;
-  esac
-  [ "$INTENTO" -lt 10 ] || { echo "ERROR: el sitio no devuelve la version $VERSION" >&2; exit 1; }
-  INTENTO=$((INTENTO + 1))
-  sleep 3
-done
+verificar_externa "$HOSTNAME_PUBLICO" "$VERSION" || exit 1
 
 escribir_estado "$ANTERIOR" "$VERSION"
 

@@ -139,6 +139,16 @@ Un túnel por entorno. En el dashboard: **Zero Trust → Networks → Tunnels �
    correo limitada al tuyo. Es gratis hasta 50 usuarios. PRE contiene una copia de los datos
    de producción y no puede quedar abierto en internet.
 
+5. **Y una segunda aplicación de Access que exceptúe la sonda de salud.** Sobre
+   `pre.in-fluence.party/api/health`, con política **Bypass / Everyone**. Access gana por
+   ruta más específica, así que esta excepción aplica solo a esa URL.
+
+   Hace falta porque `desplegar.sh` verifica desde internet que el dominio ya sirve el sha
+   nuevo, y sin la excepción Access interceptaría ese `curl` y devolvería la pantalla de
+   login: todos los despliegues a PRE fallarían en el último paso. La sonda solo expone el
+   nombre del entorno y el sha desplegado, que en un repositorio público no es información
+   nueva. El script detecta este caso concreto y lo dice con nombre y apellido.
+
 > El túnel usa HTTP hacia Caddy porque ese tramo no sale del servidor. El TLS público lo
 > termina Cloudflare, y el frontend detecta HTTPS por la cabecera `x-forwarded-proto` para
 > marcar las cookies de sesión como `Secure`. Por eso el Caddyfile declara
