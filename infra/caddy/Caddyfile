@@ -8,7 +8,6 @@
 # El destino NO esta aqui sino en upstream.conf, que reescribe infra/desplegar.sh. Tampoco
 # puede ser una variable de entorno: esas se congelan al crear el contenedor, asi que
 # cambiarlas exigiria recrearlo, que es exactamente el corte que queremos evitar.
-
 {
 	# TLS lo termina Cloudflare; aqui adentro todo es HTTP plano dentro de la red de docker.
 	auto_https off

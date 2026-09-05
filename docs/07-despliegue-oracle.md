@@ -244,15 +244,25 @@ IMAGE_TAG=pendiente dcpro exec minio \
 
 ## 8. Dar acceso al pipeline y levantar el stack
 
-El despliegue lo hace GitHub Actions por SSH. Genera una llave dedicada **en el servidor**
-(no reutilices la de administración) y átala al wrapper que limita lo que puede hacer:
+El despliegue lo hace GitHub Actions por SSH. La llave es dedicada (no reutilices la de
+administración) y se genera **en tu PC**, no en el servidor: así la parte privada nunca
+existe en la VM y no hay que acordarse de borrarla.
+
+En tu PC (PowerShell):
+
+```powershell
+ssh-keygen -t ed25519 -f $HOME\.ssh\rave-ci -N '""' -C "deploy@ci"
+Get-Content $HOME\.ssh\rave-ci.pub
+```
+
+En el servidor, instala el wrapper y autoriza **solo la parte pública**, pegándola donde
+dice `<PEGA-AQUI-LA-PUBLICA>`:
 
 ```bash
 mkdir -p ~/bin && cp ~/rave-pro/infra/desplegar-remoto.sh ~/bin/ && chmod +x ~/bin/desplegar-remoto.sh
 
-ssh-keygen -t ed25519 -f ~/.ssh/ci-deploy -N '' -C 'deploy@ci'
 printf 'command="/home/ubuntu/bin/desplegar-remoto.sh",restrict %s\n' \
-  "$(cat ~/.ssh/ci-deploy.pub)" >> ~/.ssh/authorized_keys
+  '<PEGA-AQUI-LA-PUBLICA>' >> ~/.ssh/authorized_keys
 ```
 
 `command=` hace que esa llave **solo** pueda ejecutar el wrapper, ignorando cualquier
@@ -265,11 +275,8 @@ En GitHub, **Settings → Secrets and variables → Actions**, crea tres secreto
 | Secreto | Valor |
 |---|---|
 | `SSH_HOST` | la IP pública de la VM |
-| `SSH_DEPLOY_KEY` | el contenido de `~/.ssh/ci-deploy` (la privada) |
+| `SSH_DEPLOY_KEY` | el contenido de `$HOME\.ssh\rave-ci` (la privada, de tu PC) |
 | `SSH_KNOWN_HOSTS` | la salida de `ssh-keyscan -t ed25519 <IP>` |
-
-Borra la llave privada del servidor una vez copiada (`shred -u ~/.ssh/ci-deploy`): ahí ya no
-hace falta, solo la pública en `authorized_keys`.
 
 En **Settings → Environments**, crea el entorno `produccion` y márcale **Required
 reviewers** contigo. Eso es la puerta manual: el job de PRO se detiene y espera tu
