@@ -141,11 +141,11 @@ Edita `.env.prod` con `nano .env.prod` y llena:
 
 | Variable | Cómo llenarla |
 |---|---|
-| `DB_PASSWORD` | `openssl rand -base64 48` |
+| `DB_PASSWORD` | `openssl rand -hex 32` — **hex, no base64** (ver nota abajo) |
 | `MINIO_ROOT_USER` | un nombre, p. ej. `raveroot` |
-| `MINIO_ROOT_PASSWORD` | `openssl rand -base64 48` |
+| `MINIO_ROOT_PASSWORD` | `openssl rand -hex 32` |
 | `MINIO_APP_ACCESS_KEY` | un nombre, p. ej. `rave-backend` |
-| `MINIO_APP_SECRET_KEY` | `openssl rand -base64 48` |
+| `MINIO_APP_SECRET_KEY` | `openssl rand -hex 32` |
 | `JWT_ACCESS_SECRET` | `openssl rand -base64 48` |
 | `JWT_REFRESH_SECRET` | `openssl rand -base64 48` (distinto al anterior) |
 | `PUBLIC_HOSTNAME` | `boletos.tudominio.com`, **sin** `https://` |
@@ -155,6 +155,13 @@ Edita `.env.prod` con `nano .env.prod` y llena:
 
 Los secretos JWT deben tener ≥32 caracteres y ser distintos entre sí: el backend valida esto
 al arrancar y se niega a correr si no se cumple.
+
+> **Por qué hex y no base64 para `DB_PASSWORD`:** esa contraseña se interpola dentro de una
+> URL de conexión (`postgresql://rave:${DB_PASSWORD}@db:5432/ravedb`). La salida de
+> `openssl rand -base64` puede contener `/` y `+`, y un `/` rompe el parseo de la URL — el
+> backend fallaría al conectar con un error confuso. `openssl rand -hex 32` da 256 bits de
+> entropía usando solo `0-9a-f`, seguro dentro de una URL. Los secretos JWT sí pueden ser
+> base64 porque se usan como texto, no dentro de una URL.
 
 ## 7. Arrancar la base y el almacenamiento, y crear la llave de MinIO
 
@@ -310,10 +317,34 @@ próximo `git pull` te lo va a pisar.
 | El backend reinicia en bucle | Casi siempre `.env.prod`: secretos JWT de menos de 32 caracteres, iguales entre sí, o valores de ejemplo. El log lo dice explícitamente. |
 | Error al subir logo o generar PDF | La llave de servicio de MinIO no tiene la política adjunta (paso 7). Verifica con `mc admin policy entities local --user <access-key>`. |
 | Sesión que se cae al recargar | Las cookies `Secure` no llegan: se está entrando por HTTP o sin pasar por el túnel. Entra siempre por el dominio, nunca por la IP. |
-| `Out of capacity` al crear la VM | Shapes ARM agotadas en ese Availability Domain. Reintenta o cambia de AD. |
+| `Out of capacity` al crear la VM | Shapes ARM agotadas en ese Availability Domain. Reintenta o cambia de AD/fault domain. |
+| `E: The package cache file is corrupted` al instalar Docker | En el primer arranque las actualizaciones automáticas de Ubuntu corren en paralelo y chocan con tu `apt`. Espera a que `cloud-init status` diga `done`, y luego `sudo rm -f /var/cache/apt/*.bin && sudo apt-get clean && sudo apt-get update`. |
+| `bad interpreter: /bin/sh^M` en un script | Finales de línea CRLF. El repo tiene `.gitattributes` con `eol=lf` para evitarlo; si aparece, es que se editó el archivo con una herramienta que ignoró esa configuración. |
 | La build se queda sin memoria | Improbable con 12 GB, pero si pasa: `docker builder prune` para liberar caché y reintenta. |
 
-## 13. Plan B
+## 13. Estado actual del despliegue
+
+Lo aprovisionado el 2026-09-04 en la tenancy, todo en la región `mx-queretaro-1`
+(la *home region*, única donde los recursos Always Free no se cobran):
+
+| Recurso | Nombre / valor |
+|---|---|
+| VCN | `rave-vcn`, `10.0.0.0/16` |
+| Internet Gateway | `rave-igw`, ruta `0.0.0.0/0` |
+| Subred pública | `rave-subnet`, `10.0.0.0/24` |
+| Instancia | `rave-prod`, `VM.Standard.A1.Flex`, 2 OCPU / 12 GB, Ubuntu 26.04 LTS aarch64 |
+| Disco | 50 GB (el sistema de archivos raíz crece solo al arrancar) |
+| Puertos abiertos a internet | **solo 22 (SSH)** e ICMP — el ingreso público es el túnel |
+| Llave SSH | `~/.ssh/rave-oracle` en la máquina de desarrollo |
+
+Hecho: Docker Engine + Compose instalados, repositorio clonado en
+`/home/ubuntu/rave-tickets`, `infra/.env.prod` creado con los secretos generados en el
+propio servidor (permisos `600`).
+
+Pendiente: `PUBLIC_HOSTNAME`, `CLOUDFLARE_TUNNEL_TOKEN` y las variables `SEED_*` en
+`.env.prod`; después, secciones 7 a 10 de este runbook.
+
+## 14. Plan B
 
 Si Oracle nunca te da la instancia ARM, el mismo código corre en un PaaS gratuito repartido:
 frontend en Cloudflare Pages, backend en Render, PostgreSQL en Neon y los archivos en
