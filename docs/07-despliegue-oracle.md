@@ -10,11 +10,17 @@ Internet → Cloudflare (TLS, DNS, DDoS)
               │  (conexión saliente, iniciada por el servidor)
               ▼
         ┌──────────────────────── VM Ubuntu en Oracle Cloud ────────────────────────┐
-        │  cloudflared → frontend (Next.js :3000) → backend (NestJS :3001)          │
-        │                                              ├── db (PostgreSQL 16)       │
-        │                                              └── minio (S3, PDFs/imágenes)│
+        │  cloudflared → caddy → frontend-<color> (Next.js) → backend-<color> (Nest)│
+        │                                                       ├── db (PostgreSQL) │
+        │                                                       └── minio (S3)      │
+        │                                                                           │
+        │  Este stack existe DOS veces: rave-pro y rave-pre, sin nada compartido.    │
         └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+Caddy es el borde interno y existe por una sola razón: es donde se conmuta de color en un
+despliegue sin cortar el tráfico. Ver [`09-entornos-pre-pro.md`](09-entornos-pre-pro.md)
+para la operación diaria de los dos entornos; este documento cubre el montaje del servidor.
 
 Ningún contenedor publica puertos al host y **el servidor no necesita puertos de entrada
 abiertos**: el túnel sale desde la VM hacia Cloudflare. Eso elimina el paso más frágil de un
@@ -96,48 +102,60 @@ docker compose version
 
 ## 4. Clonar el repositorio
 
+Un clon por entorno: cada uno queda en un commit distinto, y un solo directorio no puede
+estar en dos a la vez.
+
 ```bash
 cd ~
-git clone https://github.com/salvadorsin123/rave-tickets.git
-cd rave-tickets
+git clone https://github.com/salvadorsin123/rave-tickets.git rave-pro
+git clone https://github.com/salvadorsin123/rave-tickets.git rave-pre
+cd rave-pre && git checkout develop && cd ~
 ```
 
-## 5. Crear el túnel de Cloudflare
+## 5. Crear los túneles de Cloudflare
 
-En el dashboard de Cloudflare: **Zero Trust → Networks → Tunnels → Create a tunnel**.
+Un túnel por entorno. En el dashboard: **Zero Trust → Networks → Tunnels → Create a tunnel**.
 
-1. Tipo **Cloudflared**. Ponle un nombre (por ejemplo `rave-prod`).
+1. Tipo **Cloudflared**. Nómbralos `rave-prod` y `rave-pre`.
 2. En la pantalla de instalación, **copia el token** que aparece en el comando
    (`cloudflared service install <TOKEN>`). Ese `<TOKEN>` es tu `CLOUDFLARE_TUNNEL_TOKEN`.
    No instales nada en el servidor: el contenedor `cloudflared` del stack lo usa.
-3. En **Public Hostnames**, agrega uno:
+3. En **Public Hostnames**, agrega uno a cada túnel:
 
-   | Campo | Valor |
-   |---|---|
-   | Subdomain | `boletos` (o el que prefieras) |
-   | Domain | tu dominio |
-   | Type | `HTTP` |
-   | URL | `frontend:3000` |
+   | Campo | `rave-prod` | `rave-pre` |
+   |---|---|---|
+   | Subdomain | `www` | `pre` |
+   | Domain | `in-fluence.party` | `in-fluence.party` |
+   | Type | `HTTP` | `HTTP` |
+   | URL | `caddy:80` | `caddy:80` |
 
-   `frontend` es el nombre del servicio en Compose: `cloudflared` corre en la misma red de
-   Docker y lo resuelve por DNS interno. Cloudflare crea solo el registro DNS.
+   **`caddy:80`, no `frontend:3000`.** Caddy es el borde interno que permite conmutar de
+   color sin cortar el tráfico; si el túnel apunta directo a un frontend, el despliegue
+   azul/verde deja de funcionar. `caddy` es el nombre del servicio en Compose, y cada túnel
+   resuelve el de su propia red de Docker.
 
-> El túnel usa HTTP hacia el frontend porque ese tramo no sale del servidor. El TLS público
-> lo termina Cloudflare, y el frontend detecta HTTPS por la cabecera `x-forwarded-proto` para
-> marcar las cookies de sesión como `Secure`.
+4. **Protege PRE con Cloudflare Access.** En **Zero Trust → Access → Applications**, crea
+   una aplicación *self-hosted* sobre `pre.in-fluence.party` con una política de PIN por
+   correo limitada al tuyo. Es gratis hasta 50 usuarios. PRE contiene una copia de los datos
+   de producción y no puede quedar abierto en internet.
 
-## 6. Crear los secretos de producción
+> El túnel usa HTTP hacia Caddy porque ese tramo no sale del servidor. El TLS público lo
+> termina Cloudflare, y el frontend detecta HTTPS por la cabecera `x-forwarded-proto` para
+> marcar las cookies de sesión como `Secure`. Por eso el Caddyfile declara
+> `trusted_proxies static private_ranges`: sin eso Caddy reescribiría esa cabecera con su
+> propio protocolo (http) y las sesiones dejarían de funcionar sin dar ningún error visible.
+
+## 6. Crear los secretos de cada entorno
 
 ```bash
-cd ~/rave-tickets/infra
-cp .env.prod.example .env.prod
-chmod 600 .env.prod
-
-# Genera cada secreto y pégalo en el archivo:
-openssl rand -base64 48
+cd ~/rave-pro/infra
+cp .env.pro.example .env.pro
+chmod 600 .env.pro
 ```
 
-Edita `.env.prod` con `nano .env.prod` y llena:
+Y lo mismo en `~/rave-pre/infra` con `.env.pre.example` → `.env.pre`.
+
+Edita el archivo con `nano .env.pro` y llena:
 
 | Variable | Cómo llenarla |
 |---|---|
@@ -148,13 +166,18 @@ Edita `.env.prod` con `nano .env.prod` y llena:
 | `MINIO_APP_SECRET_KEY` | `openssl rand -hex 32` |
 | `JWT_ACCESS_SECRET` | `openssl rand -base64 48` |
 | `JWT_REFRESH_SECRET` | `openssl rand -base64 48` (distinto al anterior) |
-| `PUBLIC_HOSTNAME` | `boletos.tudominio.com`, **sin** `https://` |
+| `PUBLIC_HOSTNAME` | `www.in-fluence.party`, **sin** `https://` |
 | `CLOUDFLARE_TUNNEL_TOKEN` | el token del paso 5 |
+| `APP_ENV` | `pro` o `pre` — ya viene puesto en cada plantilla |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | tu correo y una contraseña fuerte |
 | `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` | idem, para el super administrador |
 
 Los secretos JWT deben tener ≥32 caracteres y ser distintos entre sí: el backend valida esto
 al arrancar y se niega a correr si no se cumple.
+
+> **Ningún valor puede repetirse entre `.env.pro` y `.env.pre`.** No es formalismo: un
+> `JWT_ACCESS_SECRET` compartido haría que un token emitido en staging fuera válido en
+> producción. Genera los secretos de PRE por separado, no los copies.
 
 > **Por qué hex y no base64 para `DB_PASSWORD`:** esa contraseña se interpola dentro de una
 > URL de conexión (`postgresql://rave:${DB_PASSWORD}@db:5432/ravedb`). La salida de
@@ -165,21 +188,32 @@ al arrancar y se niega a correr si no se cumple.
 
 ## 7. Arrancar la base y el almacenamiento, y crear la llave de MinIO
 
+Los comandos de Compose para estos stacks son largos (nombre de proyecto, archivo, env-file
+y los dos perfiles de color), así que conviene un alias por entorno. Repite el bloque
+cambiando `pro` por `pre` cuando montes el segundo entorno:
+
+```bash
+alias dcpro='docker compose -p rave-pro -f ~/rave-pro/infra/docker-compose.stack.yml --env-file ~/rave-pro/infra/.env.pro --profile azul --profile verde'
+```
+
 El backend no usa las credenciales root de MinIO, sino una llave de servicio acotada al
 bucket. Hay que crearla antes del primer arranque:
 
 ```bash
-cd ~/rave-tickets/infra
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d db minio
+cd ~/rave-pro/infra
+IMAGE_TAG=pendiente dcpro up -d db minio
 
 # Espera a que MinIO quede "healthy"
-docker compose -f docker-compose.prod.yml --env-file .env.prod ps
+IMAGE_TAG=pendiente dcpro ps
 ```
+
+`IMAGE_TAG` es obligatorio porque el Compose lo exige, pero aquí da igual su valor: `db` y
+`minio` usan imágenes públicas fijas y no dependen de él.
 
 Ahora, dentro del contenedor de MinIO (las variables ya están disponibles ahí):
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec minio sh -c '
+IMAGE_TAG=pendiente dcpro exec minio sh -c '
   mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
   mc mb --ignore-existing local/boletos-pdf &&
   cat > /tmp/politica.json <<EOF
@@ -198,28 +232,59 @@ EOF
   mc admin policy create local rave-boletos /tmp/politica.json'
 ```
 
-Y creas el usuario con las credenciales que pusiste en `.env.prod`:
+Y creas el usuario con las credenciales que pusiste en `.env.pro`:
 
 ```bash
-set -a; . ./.env.prod; set +a
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec minio \
+set -a; . ./.env.pro; set +a
+IMAGE_TAG=pendiente dcpro exec minio \
   mc admin user add local "$MINIO_APP_ACCESS_KEY" "$MINIO_APP_SECRET_KEY"
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec minio \
+IMAGE_TAG=pendiente dcpro exec minio \
   mc admin policy attach local rave-boletos --user "$MINIO_APP_ACCESS_KEY"
 ```
 
-## 8. Levantar el stack completo
+## 8. Dar acceso al pipeline y levantar el stack
+
+El despliegue lo hace GitHub Actions por SSH. Genera una llave dedicada **en el servidor**
+(no reutilices la de administración) y átala al wrapper que limita lo que puede hacer:
 
 ```bash
-cd ~/rave-tickets/infra
-docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+mkdir -p ~/bin && cp ~/rave-pro/infra/desplegar-remoto.sh ~/bin/ && chmod +x ~/bin/desplegar-remoto.sh
+
+ssh-keygen -t ed25519 -f ~/.ssh/ci-deploy -N '' -C 'deploy@ci'
+printf 'command="/home/ubuntu/bin/desplegar-remoto.sh",restrict %s\n' \
+  "$(cat ~/.ssh/ci-deploy.pub)" >> ~/.ssh/authorized_keys
 ```
 
-La primera construcción tarda: compila el backend de NestJS y el frontend de Next.js sobre
-ARM. Con 12 GB de RAM no hace falta swap. Sigue el avance con:
+`command=` hace que esa llave **solo** pueda ejecutar el wrapper, ignorando cualquier
+comando que pida el cliente; `restrict` apaga port forwarding, agent forwarding y pty. El
+wrapper valida el entorno y el sha antes de actuar, así que lo peor que permite la llave si
+se filtrara es desplegar un commit de tu propio repositorio.
+
+En GitHub, **Settings → Secrets and variables → Actions**, crea tres secretos:
+
+| Secreto | Valor |
+|---|---|
+| `SSH_HOST` | la IP pública de la VM |
+| `SSH_DEPLOY_KEY` | el contenido de `~/.ssh/ci-deploy` (la privada) |
+| `SSH_KNOWN_HOSTS` | la salida de `ssh-keyscan -t ed25519 <IP>` |
+
+Borra la llave privada del servidor una vez copiada (`shred -u ~/.ssh/ci-deploy`): ahí ya no
+hace falta, solo la pública en `authorized_keys`.
+
+En **Settings → Environments**, crea el entorno `produccion` y márcale **Required
+reviewers** contigo. Eso es la puerta manual: el job de PRO se detiene y espera tu
+aprobación. Crea también `pre`, sin revisores. En repositorios públicos esto no tiene costo.
+
+Por último, marca como **públicos** los dos paquetes de GHCR la primera vez que se publiquen
+(**Packages → el paquete → Package settings → Change visibility**), para que el servidor
+pueda hacer `pull` sin credenciales. No contienen secretos: toda la configuración es de
+runtime.
+
+Con eso, el primer despliegue:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f
+cd ~/rave-pro
+./infra/desplegar.sh pro "$(git rev-parse HEAD)"
 ```
 
 Las migraciones de Prisma se aplican solas al arrancar el backend (`prisma migrate deploy`
@@ -227,29 +292,30 @@ en `docker-entrypoint.sh`). Falta sembrar roles, permisos y los usuarios inicial
 se corre una sola vez**:
 
 ```bash
-set -a; . ./.env.prod; set +a
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec \
+cd ~/rave-pro/infra
+set -a; . ./.env.pro; set +a
+IMAGE_TAG="$(git -C ~/rave-pro rev-parse HEAD)" dcpro exec \
   -e SEED_ADMIN_EMAIL="$SEED_ADMIN_EMAIL" \
   -e SEED_ADMIN_PASSWORD="$SEED_ADMIN_PASSWORD" \
   -e SEED_SUPER_ADMIN_EMAIL="$SEED_SUPER_ADMIN_EMAIL" \
   -e SEED_SUPER_ADMIN_PASSWORD="$SEED_SUPER_ADMIN_PASSWORD" \
-  backend npx prisma db seed
+  backend-azul npx prisma db seed
 ```
 
-Después de sembrar, puedes borrar las líneas `SEED_*` de `.env.prod`. El seed usa `upsert`,
+Después de sembrar, puedes borrar las líneas `SEED_*` de `.env.pro`. El seed usa `upsert`,
 así que volver a correrlo no duplica nada.
 
 ## 9. Verificar
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod ps   # todo Up/healthy
-curl -I https://boletos.tudominio.com                                # 200 y certificado válido
+IMAGE_TAG=pendiente dcpro ps                        # todo Up/healthy
+curl -s https://www.in-fluence.party/api/health     # {"ok":true,"env":"pro","version":"<sha>"}
 ```
 
 Y la prueba que de verdad importa, **desde un celular con datos móviles** (no desde el WiFi
 de tu casa), que es el escenario real de la puerta de un evento:
 
-1. Entrar a `https://boletos.tudominio.com` e iniciar sesión con el usuario del seed.
+1. Entrar a `https://www.in-fluence.party` e iniciar sesión con el usuario del seed.
 2. Crear un evento y subirle logo e imagen de fondo → ejercita MinIO.
 3. Registrar una venta y descargar el PDF del boleto → ejercita MinIO + PostgreSQL.
 4. Abrir la vista de escáner y escanear el QR de ese PDF → debe salir verde la primera vez y
@@ -265,11 +331,10 @@ todo debe volver solo, sin que tengas que entrar por SSH.
 conservando 7 días.
 
 ```bash
-cd ~/rave-tickets/infra
-chmod +x respaldar.sh
+cd ~/rave-pro
 sudo mkdir -p /var/backups/rave && sudo chown $USER /var/backups/rave
-./respaldar.sh                      # primera corrida manual
-ls -lh /var/backups/rave
+./infra/respaldar.sh pro             # primera corrida manual
+ls -lh /var/backups/rave/pro
 ```
 
 Programarlo a diario a las 3 AM:
@@ -277,8 +342,14 @@ Programarlo a diario a las 3 AM:
 ```bash
 crontab -e
 # agrega esta línea:
-0 3 * * * /home/ubuntu/rave-tickets/infra/respaldar.sh >> /var/log/rave-respaldo.log 2>&1
+0 3 * * * /home/ubuntu/rave-pro/infra/respaldar.sh pro >> /var/log/rave-respaldo.log 2>&1
 ```
+
+Solo se respalda PRO. PRE es desechable por diseño: `clonar-pro-a-pre.sh` lo reconstruye
+desde producción cuando haga falta, y respaldarlo solo gastaría disco.
+
+`desplegar.sh` corre además un respaldo **automático antes de cada despliegue a PRO**, sin
+importar si el cambio trae migraciones o no.
 
 **Sácalos del servidor.** Un respaldo que vive en la misma VM no te protege de perder la VM.
 La opción gratuita más simple es Cloudflare R2 (10 GB gratis permanentes, misma cuenta de
@@ -294,27 +365,22 @@ docker compose exec -T db pg_restore -U rave -d ravedb --clean --if-exists < pos
 
 ## 11. Actualizar la aplicación
 
-El despliegue es *pull*, no *push*: no hay workflow que despliegue solo. Desde el servidor:
-
-```bash
-cd ~/rave-tickets
-git pull
-cd infra
-docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
-```
-
-Las migraciones nuevas se aplican solas al reiniciar el backend. **Haz un respaldo antes de
-una actualización que traiga migraciones** (`./respaldar.sh`).
+Ya no se actualiza a mano ni se compila en el servidor. Push a `develop` despliega a PRE;
+merge a `main` deja el despliegue a PRO esperando tu aprobación en la pestaña Actions. El
+ciclo completo, la reversión y cómo refrescar PRE están en
+[`09-entornos-pre-pro.md`](09-entornos-pre-pro.md).
 
 El desarrollo sigue ocurriendo en tu PC, no en el servidor: nunca edites código aquí, o el
-próximo `git pull` te lo va a pisar.
+próximo despliegue te lo va a pisar.
 
 ## 12. Solución de problemas
 
 | Síntoma | Causa probable / qué revisar |
 |---|---|
-| El dominio da error 502 de Cloudflare | El frontend no está arriba, o el Public Hostname del túnel no apunta a `frontend:3000`. Revisa `docker compose ... ps` y `logs cloudflared`. |
-| El backend reinicia en bucle | Casi siempre `.env.prod`: secretos JWT de menos de 32 caracteres, iguales entre sí, o valores de ejemplo. El log lo dice explícitamente. |
+| El dominio da error 502 de Cloudflare | El Public Hostname del túnel debe apuntar a `caddy:80` (no a `frontend:3000`), o Caddy apunta a un color apagado. Revisa `dcpro ps` y `dcpro logs cloudflared caddy`. |
+| El backend reinicia en bucle | Casi siempre el `.env` del entorno: secretos JWT de menos de 32 caracteres, iguales entre sí, o valores de ejemplo. El log lo dice explícitamente. |
+| La sesión se cae al recargar, solo después de meter Caddy | Caddy está pisando `X-Forwarded-Proto` y el frontend deja de marcar las cookies como `Secure`. El Caddyfile debe tener `trusted_proxies static private_ranges`. |
+| `falta IMAGE_TAG` al correr un comando de Compose | Ese Compose exige el tag de forma explícita para que nadie despliegue "lo que hubiera". Para comandos de lectura basta `IMAGE_TAG=pendiente dcpro ps`. |
 | Error al subir logo o generar PDF | La llave de servicio de MinIO no tiene la política adjunta (paso 7). Verifica con `mc admin policy entities local --user <access-key>`. |
 | Sesión que se cae al recargar | Las cookies `Secure` no llegan: se está entrando por HTTP o sin pasar por el túnel. Entra siempre por el dominio, nunca por la IP. |
 | `Out of capacity` al crear la VM | Shapes ARM agotadas en ese Availability Domain. Reintenta o cambia de AD/fault domain. |
@@ -337,12 +403,23 @@ Lo aprovisionado el 2026-09-04 en la tenancy, todo en la región `mx-queretaro-1
 | Puertos abiertos a internet | **solo 22 (SSH)** e ICMP — el ingreso público es el túnel |
 | Llave SSH | `~/.ssh/rave-oracle` en la máquina de desarrollo |
 
-Hecho: Docker Engine + Compose instalados, repositorio clonado en
-`/home/ubuntu/rave-tickets`, `infra/.env.prod` creado con los secretos generados en el
-propio servidor (permisos `600`).
+**Producción está en línea desde el 2026-09-04** en `https://www.in-fluence.party`: Docker
+Engine + Compose instalados, stack corriendo, migraciones aplicadas, siembra hecha, MinIO
+con su llave de servicio acotada, respaldos por cron verificados como restaurables, y
+reinicio de la VM probado con recuperación automática.
 
-Pendiente: `PUBLIC_HOSTNAME`, `CLOUDFLARE_TUNNEL_TOKEN` y las variables `SEED_*` en
-`.env.prod`; después, secciones 7 a 10 de este runbook.
+Estructura en el servidor tras la migración a dos entornos:
+
+| Ruta | Qué es |
+|---|---|
+| `/home/ubuntu/rave-pro` | clon en el sha de `main`, con `infra/.env.pro` y `infra/.estado/` |
+| `/home/ubuntu/rave-pre` | clon en el sha de `develop`, con `infra/.env.pre` |
+| `/home/ubuntu/bin/desplegar-remoto.sh` | wrapper al que está atada la llave SSH del pipeline |
+| `/var/backups/rave/pro` | respaldos, retención 7 días |
+
+**Pendiente real:** los respaldos siguen viviendo en la misma VM. Un respaldo que no sale
+del servidor no protege contra perder el servidor — ver la nota de la sección 10 sobre
+Cloudflare R2 + `rclone`.
 
 ## 14. Plan B
 

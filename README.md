@@ -111,11 +111,15 @@ rave-tickets/
 │           └── scanner/       # QR scanner view
 ├── infra/
 │   ├── docker-compose.yml      # Local dev stack
-│   ├── docker-compose.prod.yml # Production stack (no published ports + cloudflared)
+│   ├── docker-compose.stack.yml # PRE and PRO stack (no published ports, blue/green + cloudflared)
+│   ├── caddy/Caddyfile         # Internal edge - where the blue/green switch happens
+│   ├── desplegar.sh            # Blue/green deploy;  revertir.sh rolls back
+│   ├── clonar-pro-a-pre.sh     # Refresh PRE from a PRO snapshot (anonymised)
 │   └── respaldar.sh            # Daily backup of Postgres + MinIO
 ├── docs/                      # Architecture, data model, UML, wireframes, deploy guide
 └── .github/workflows/
-    └── ci.yml                 # Lint + typecheck + test + build
+    ├── ci.yml                 # Verify -> publish arm64 images -> deploy
+    └── desplegar-manual.yml   # Redeploy an arbitrary sha
 ```
 
 ---
@@ -192,7 +196,11 @@ npm run test:cov      # with coverage report
 
 ## CI/CD
 
-Every push to `main` triggers the CI workflow (lint → typecheck → tests → build for both apps, plus a Docker build of both images). Deployment is a pull, not a push: on the server you run `git pull` and rebuild the Compose stack — see the [deployment guide](docs/07-despliegue-oracle.md). Migrations run automatically when the backend container starts (`prisma migrate deploy`).
+Two isolated environments run side by side on the same VM: **PRE** (`pre.in-fluence.party`, branch `develop`) and **PRO** (`www.in-fluence.party`, branch `main`).
+
+Every push runs lint → typecheck → tests → build for both apps, then publishes arm64 images to GHCR. A push to `develop` deploys to PRE automatically; a merge to `main` waits for manual approval on the `produccion` environment, then deploys **the same image tag that already ran in PRE** — no rebuild.
+
+Deploys are blue/green: the inactive colour is brought up alongside the live one, health-checked, and only then does Caddy switch upstreams, so no request is dropped. `infra/revertir.sh` rolls back in under a second. Migrations run when the backend container starts (`prisma migrate deploy`), which means they must be backward compatible — see the [environments guide](docs/09-entornos-pre-pro.md).
 
 ---
 
@@ -223,6 +231,7 @@ Detailed documentation lives in [`/docs`](docs/):
 - [Folder structure](docs/05-estructura-de-carpetas.md)
 - [Wireframes](docs/06-wireframes.md)
 - [Deployment guide (Oracle Cloud + Cloudflare Tunnel)](docs/07-despliegue-oracle.md)
+- [PRE / PRO environments and blue-green deploys](docs/09-entornos-pre-pro.md)
 - [Security & scalability](docs/08-seguridad-y-escalabilidad.md)
 
 ---

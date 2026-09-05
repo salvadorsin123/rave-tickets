@@ -1,0 +1,178 @@
+# Stack de despliegue: lo usan LOS DOS entornos (PRE y PRO) sin ninguna diferencia.
+#
+# Un solo archivo en vez de docker-compose.pre.yml + docker-compose.pro.yml a proposito:
+# dos archivos casi identicos se separan con el tiempo, y cuando eso pasa PRE deja de
+# probar lo que PRO va a correr, que es justo para lo que existe. Lo que separa a los
+# entornos es el nombre de proyecto (rave-pre / rave-pro), que namespacea contenedores,
+# volumenes y red, mas su propio --env-file.
+#
+# No se invoca a mano: usa infra/desplegar.sh, que fija COMPOSE_PROJECT_NAME, IMAGE_TAG y
+# el --env-file correspondiente. Ver docs/09-entornos-pre-pro.md.
+#
+# Despliegue azul/verde: backend y frontend existen por duplicado tras un "profile" de
+# color. Se levanta el color inactivo junto al que esta sirviendo, se espera a que reporte
+# salud, y solo entonces se cambia el upstream de Caddy (recarga gradual, sin cortar las
+# peticiones en vuelo). db, minio, caddy y cloudflared son compartidos y no se recrean.
+
+x-backend: &backend
+  image: ghcr.io/salvadorsin123/rave-tickets/backend:${IMAGE_TAG:?falta IMAGE_TAG (lo fija desplegar.sh)}
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+  environment:
+    NODE_ENV: "production"
+    # APP_ENV distingue el entorno en runtime; APP_VERSION es el sha desplegado. Ambos se
+    # exponen en /api/health del frontend, que es como el script de despliegue verifica que
+    # aterrizo la version correcta.
+    APP_ENV: ${APP_ENV:?falta APP_ENV (pre|pro)}
+    APP_VERSION: ${IMAGE_TAG}
+    DATABASE_URL: "postgresql://rave:${DB_PASSWORD:?falta DB_PASSWORD}@db:5432/ravedb"
+    JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?falta JWT_ACCESS_SECRET}
+    JWT_ACCESS_EXPIRES_IN: "15m"
+    JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?falta JWT_REFRESH_SECRET}
+    JWT_REFRESH_EXPIRES_IN: "7d"
+    PORT: "3001"
+    CORS_ORIGIN: "https://${PUBLIC_HOSTNAME:?falta PUBLIC_HOSTNAME}"
+    MINIO_ENDPOINT: "minio"
+    MINIO_PORT: "9000"
+    # Trafico interno de la red de docker, no sale del servidor: TLS aqui solo agregaria
+    # complejidad de certificados sin ganancia real.
+    MINIO_USE_SSL: "false"
+    # Llave de servicio acotada al bucket, NO las credenciales root de MinIO.
+    MINIO_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:?falta MINIO_APP_ACCESS_KEY}
+    MINIO_SECRET_KEY: ${MINIO_APP_SECRET_KEY:?falta MINIO_APP_SECRET_KEY}
+    MINIO_BUCKET: "boletos-pdf"
+    THROTTLE_TTL: "60"
+    THROTTLE_LIMIT: "100"
+  healthcheck:
+    # /health no toca la base ni el storage: responde si el proceso Nest esta vivo.
+    # Intervalo corto porque el despliegue azul/verde espera este healthcheck para decidir
+    # si conmuta; 30s harian que cada deploy tardara de mas sin ganar nada.
+    test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 30s
+  # Sin "ports": el backend solo es alcanzable desde su frontend dentro de la red interna.
+
+# Variables comunes a los dos colores de frontend. BACKEND_URL es lo unico que cambia, y
+# por eso no puede vivir en el ancla del servicio: una clave "environment" en el servicio
+# reemplazaria el mapa completo del ancla en vez de fusionarlo.
+x-frontend-env: &frontend-env
+  APP_ENV: ${APP_ENV}
+  APP_VERSION: ${IMAGE_TAG}
+  ACCESS_TOKEN_MAX_AGE_SECONDS: "900"
+  REFRESH_TOKEN_MAX_AGE_SECONDS: "604800"
+  PORT: "3000"
+
+x-frontend: &frontend
+  image: ghcr.io/salvadorsin123/rave-tickets/frontend:${IMAGE_TAG:?falta IMAGE_TAG (lo fija desplegar.sh)}
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+  # Tampoco publica puertos: solo Caddy lo alcanza, por DNS interno.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rave
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD}
+      POSTGRES_DB: ravedb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rave -d ravedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?falta MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?falta MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # --- Color azul ---------------------------------------------------------------
+  backend-azul:
+    <<: *backend
+    profiles: [azul]
+
+  frontend-azul:
+    <<: *frontend
+    profiles: [azul]
+    environment:
+      <<: *frontend-env
+      BACKEND_URL: "http://backend-azul:3001"
+    depends_on:
+      backend-azul:
+        condition: service_healthy
+
+  # --- Color verde --------------------------------------------------------------
+  backend-verde:
+    <<: *backend
+    profiles: [verde]
+
+  frontend-verde:
+    <<: *frontend
+    profiles: [verde]
+    environment:
+      <<: *frontend-env
+      BACKEND_URL: "http://backend-verde:3001"
+    depends_on:
+      backend-verde:
+        condition: service_healthy
+
+  # --- Borde interno ------------------------------------------------------------
+  caddy:
+    # Unico servicio que conoce a los dos colores. El upstream vive en un archivo aparte
+    # (caddy/upstream.conf) que reescribe desplegar.sh; "caddy reload" lo relee sin
+    # reiniciar el contenedor y sin cortar conexiones abiertas. Por eso el upstream NO
+    # puede ser una variable de entorno: esas se congelan al crear el contenedor.
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      # Se monta el directorio completo, no cada archivo: si se montara upstream.conf por
+      # ruta y el archivo no existiera, Docker crearia un DIRECTORIO con ese nombre y Caddy
+      # fallaria de forma confusa.
+      - ./caddy:/etc/caddy:ro
+    healthcheck:
+      # GET, no --spider: --spider manda HEAD, y verificar el camino real es lo util aqui.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://127.0.0.1:80/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Sin "ports": solo cloudflared lo alcanza, por la red interna.
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?falta CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
+volumes:
+  postgres-data:
+  minio-data:

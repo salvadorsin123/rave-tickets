@@ -1,0 +1,29 @@
+# Borde interno del stack: cloudflared -> caddy -> frontend-<color>.
+#
+# Caddy existe por una sola razon: es el punto donde se conmuta el color en un despliegue
+# azul/verde. "caddy reload" relee la configuracion sin reiniciar el proceso y deja que las
+# peticiones en vuelo terminen contra el destino anterior, que es lo que hace que un
+# despliegue no pierda ni una peticion.
+#
+# El destino NO esta aqui sino en upstream.conf, que reescribe infra/desplegar.sh. Tampoco
+# puede ser una variable de entorno: esas se congelan al crear el contenedor, asi que
+# cambiarlas exigiria recrearlo, que es exactamente el corte que queremos evitar.
+
+{
+	# TLS lo termina Cloudflare; aqui adentro todo es HTTP plano dentro de la red de docker.
+	auto_https off
+
+	servers {
+		# Sin esto, Caddy REESCRIBE X-Forwarded-Proto con el protocolo de su propia conexion
+		# entrante (http) y pisa el "https" que puso cloudflared. El frontend decide el flag
+		# `Secure` de las cookies de sesion leyendo esa cabecera (ver
+		# apps/frontend/src/lib/auth-cookies.ts), asi que perderla no da un error visible:
+		# simplemente deja de haber sesion. cloudflared vive en la red bridge de docker, de
+		# ahi "private_ranges".
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	import /etc/caddy/upstream.conf
+}

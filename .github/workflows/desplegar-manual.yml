@@ -1,0 +1,55 @@
+name: Desplegar (manual)
+
+# Redespliegue de un commit arbitrario, para volver a una version anterior cuando el color
+# viejo ya no esta encendido y `revertir.sh` no aplica.
+#
+# La imagen debe existir ya en GHCR: solo se publican shas que pasaron por CI, asi que esto
+# no permite desplegar codigo sin verificar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: Entorno destino
+        required: true
+        type: choice
+        options: [pre, pro]
+      sha:
+        description: Commit de 40 caracteres hex a desplegar
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  desplegar:
+    name: Desplegar ${{ inputs.sha }} a ${{ inputs.entorno }}
+    runs-on: ubuntu-latest
+    # Mismo entorno de GitHub que el despliegue automatico, asi que "pro" sigue exigiendo
+    # aprobacion: la ruta manual no es una puerta trasera para saltarse la revision.
+    environment:
+      name: ${{ inputs.entorno == 'pro' && 'produccion' || 'pre' }}
+    concurrency:
+      group: desplegar-${{ inputs.entorno }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validar el formato del sha
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "El sha debe ser 40 caracteres hex en minuscula, no '$SHA'" >&2
+            exit 1
+          fi
+
+      - uses: ./.github/actions/desplegar
+        with:
+          entorno: ${{ inputs.entorno }}
+          sha: ${{ inputs.sha }}
+          host: ${{ secrets.SSH_HOST }}
+          llave: ${{ secrets.SSH_DEPLOY_KEY }}
+          known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}

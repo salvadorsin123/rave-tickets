@@ -96,7 +96,7 @@ el túnel de Cloudflare, que sale desde la VM (no hay puertos de entrada abierto
 | Backend | Contenedor NestJS |
 | Base de datos | Contenedor PostgreSQL 16 con volumen persistente |
 | Almacenamiento de PDFs | Contenedor MinIO (API S3) con volumen persistente |
-| Secretos | Archivo `infra/.env.prod` en el servidor (fuera del repositorio) |
+| Secretos | Archivo `infra/.env.pro` / `infra/.env.pre` en el servidor (fuera del repositorio) |
 | Ingreso público / TLS | Cloudflare Tunnel (`cloudflared`) |
 | CI/CD | GitHub Actions (build/test); despliegue por `git pull` en el servidor |
 

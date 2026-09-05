@@ -1,0 +1,46 @@
+name: Desplegar por SSH
+description: >
+  Pide al servidor que despliegue un sha en un entorno. No corre comandos remotos
+  arbitrarios: la llave esta atada en el servidor a /home/ubuntu/bin/desplegar-remoto.sh,
+  que valida el entorno y el sha antes de hacer nada.
+
+inputs:
+  entorno:
+    description: pre | pro
+    required: true
+  sha:
+    description: Commit de 40 hex a desplegar
+    required: true
+  host:
+    description: Host o IP del servidor
+    required: true
+  llave:
+    description: Llave privada SSH dedicada al despliegue
+    required: true
+  known-hosts:
+    description: >
+      Linea de known_hosts del servidor. Se fija en vez de usar accept-new para que un
+      atacante que se interponga no pueda hacerse pasar por la VM.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Desplegar
+      shell: bash
+      # Todo entra por variables de entorno, nunca interpolado en el cuerpo del script:
+      # un valor con comillas dentro de ${{ }} se convertiria en inyeccion de shell.
+      env:
+        ENTORNO: ${{ inputs.entorno }}
+        SHA: ${{ inputs.sha }}
+        HOST: ${{ inputs.host }}
+        LLAVE: ${{ inputs.llave }}
+        KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        set -euo pipefail
+        mkdir -p ~/.ssh
+        printf '%s\n' "$LLAVE" > ~/.ssh/deploy
+        chmod 600 ~/.ssh/deploy
+        printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+        ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes \
+          "ubuntu@$HOST" "desplegar $ENTORNO $SHA"

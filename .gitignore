@@ -11,7 +11,13 @@ coverage/
 
 # Secretos de despliegue (plantillas .example si quedan versionadas)
 infra/.env
-infra/.env.prod
+infra/.env.pre
+infra/.env.pro
+
+# Estado local de cada entorno: color activo y sha desplegado. Lo escribe infra/desplegar.sh
+# en el servidor y es distinto en cada maquina, asi que no se versiona.
+infra/.estado/
+infra/caddy/upstream.conf
 
 # Editores / OS
 .vscode/

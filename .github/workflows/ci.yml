@@ -1,14 +1,27 @@
-name: CI
+name: CI/CD
+
+# Ciclo completo: verificar -> publicar imagenes -> desplegar.
+#
+#   push a develop  ->  PRE  (automatico)
+#   push a main     ->  PRO  (espera aprobacion manual en el entorno "produccion")
+#
+# La imagen se construye UNA vez por commit y a PRO se despliega exactamente el mismo tag
+# que ya corrio en PRE, no una reconstruccion que deberia dar lo mismo.
+#
+# Ver docs/09-entornos-pre-pro.md.
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    branches: [main, develop]
 
 defaults:
   run:
     shell: bash
+
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -80,23 +93,90 @@ jobs:
           BACKEND_URL: "http://localhost:3001"
         run: npm run build
 
-  docker-build:
-    name: Validar que ambas imagenes Docker construyen
-    runs-on: ubuntu-latest
+  imagenes:
+    name: Publicar imagenes arm64
+    # En pull requests no hay secretos ni hace falta publicar: basta con que compile.
+    if: github.event_name == 'push'
     needs: [backend, frontend]
+    # Runner ARM nativo: el servidor es aarch64 y compilar bajo QEMU tardaria de mas.
+    # Gratis y GA en repositorios publicos.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v5
 
-      - name: Build imagen backend
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Backend
         uses: docker/build-push-action@v7
         with:
           context: apps/backend
-          push: false
-          tags: rave-backend:ci
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
 
-      - name: Build imagen frontend
+      - name: Frontend
         uses: docker/build-push-action@v7
         with:
           context: apps/frontend
-          push: false
-          tags: rave-frontend:ci
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+  desplegar-pre:
+    name: Desplegar a PRE
+    if: github.ref == 'refs/heads/develop'
+    needs: imagenes
+    runs-on: ubuntu-latest
+    environment:
+      name: pre
+      url: https://pre.in-fluence.party
+    # Dos despliegues simultaneos al mismo entorno se pisarian el color activo.
+    concurrency:
+      group: desplegar-pre
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/desplegar
+        with:
+          entorno: pre
+          sha: ${{ github.sha }}
+          host: ${{ secrets.SSH_HOST }}
+          llave: ${{ secrets.SSH_DEPLOY_KEY }}
+          known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+  desplegar-pro:
+    name: Desplegar a PRODUCCION
+    if: github.ref == 'refs/heads/main'
+    needs: imagenes
+    runs-on: ubuntu-latest
+    # El entorno "produccion" tiene "required reviewers" configurado en GitHub: el job
+    # queda en pausa mostrando "Review deployments" y no toca el servidor hasta aprobarlo.
+    # Esa es la puerta manual; en repositorios publicos no tiene costo.
+    environment:
+      name: produccion
+      url: https://www.in-fluence.party
+    concurrency:
+      group: desplegar-pro
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/desplegar
+        with:
+          entorno: pro
+          sha: ${{ github.sha }}
+          host: ${{ secrets.SSH_HOST }}
+          llave: ${{ secrets.SSH_DEPLOY_KEY }}
+          known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}

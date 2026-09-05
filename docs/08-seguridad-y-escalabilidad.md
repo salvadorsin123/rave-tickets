@@ -7,7 +7,7 @@ decisiones concretas tomadas en la Fase 4 (infraestructura real, no solo princip
 
 ### Autenticación y sesión
 - JWT de acceso (15 min) + refresh (7 días), secretos independientes y aleatorios
-  (`openssl rand -base64 48`), guardados en `infra/.env.prod` en el servidor (ignorado por
+  (`openssl rand -base64 48`), guardados en `infra/.env.pro` en el servidor (ignorado por
   git) y nunca en el repositorio.
 - El frontend nunca expone el JWT al navegador: actúa como BFF, guarda los tokens en
   cookies `httpOnly` + `Secure` + `SameSite=Lax` y los reenvía server-side (ver
@@ -52,9 +52,12 @@ decisiones concretas tomadas en la Fase 4 (infraestructura real, no solo princip
 
 ### Secretos e infraestructura
 - Todos los secretos (contraseña de PostgreSQL, llaves de MinIO, secretos JWT) viven en
-  `infra/.env.prod`, creado directamente en el servidor y listado en `.gitignore`. Nunca se
-  commitean; las plantillas versionadas (`.env.prod.example`) van con los valores vacíos.
-- **Superficie de red mínima**: `docker-compose.prod.yml` no publica ningún puerto al host.
+  `infra/.env.pro` e `infra/.env.pre`, creados directamente en el servidor y listados en
+  `.gitignore`. Nunca se commitean; las plantillas versionadas (`.env.pro.example`,
+  `.env.pre.example`) van con los valores vacíos. **Ningún valor se comparte entre los dos
+  entornos:** un `JWT_ACCESS_SECRET` común haría que un token emitido en PRE valiera en
+  producción.
+- **Superficie de red mínima**: `docker-compose.stack.yml` no publica ningún puerto al host.
   PostgreSQL, MinIO y el backend solo son alcanzables desde la red interna de Compose, y el
   frontend solo desde `cloudflared`. El servidor no necesita puertos de entrada abiertos
   porque el túnel establece una conexión saliente hacia Cloudflare.
@@ -63,6 +66,43 @@ decisiones concretas tomadas en la Fase 4 (infraestructura real, no solo princip
 - La validación de arranque (`apps/backend/src/config/validar-env.ts`) rechaza en
   `NODE_ENV=production` los secretos de ejemplo del stack local, para que un despliegue mal
   configurado falle ruidosamente en vez de correr inseguro.
+- **`X-Forwarded-Proto` a través de Caddy**: el borde interno declara
+  `trusted_proxies static private_ranges`. Sin eso Caddy reescribiría esa cabecera con el
+  protocolo de su propia conexión entrante (http, porque el TLS lo termina Cloudflare), y el
+  frontend dejaría de marcar las cookies de sesión como `Secure`. El fallo no da error
+  visible: simplemente deja de haber sesión.
+
+### El entorno de staging (PRE)
+PRE existe para probar builds y migraciones contra datos con la forma real de producción, lo
+que implica que guarda una copia de esos datos. Eso lo convierte en un activo a proteger, no
+en un juguete:
+
+- **Cloudflare Access** (plan gratuito, política de PIN por correo) delante de
+  `pre.in-fluence.party`. No puede quedar abierto en internet.
+- **Anonimizado por defecto** al clonar (`infra/anonimizar.sql`): nombres y correos de
+  compradores, IPs y user-agents de escaneos, y el contenido de `BitacoraAuditoria.detalles`
+  —que guarda copia de los cuerpos de las peticiones, y por tanto de los datos de cada
+  comprador—. Se conservan los correos del staff, porque si se ofuscan no se puede iniciar
+  sesión, con las contraseñas reemplazadas por una sola de un solo entorno.
+  `--con-datos-reales` permite omitirlo para reproducir un bug puntual, y el script lo avisa
+  en pantalla.
+- **Secretos propios**, sin ningún valor compartido con producción.
+- `clonar-pro-a-pre.sh` toca producción **solo en modo lectura** (un `pg_dump` y un `tar` del
+  volumen montado `:ro`), y rechaza correr si el destino no es el proyecto `rave-pre`.
+
+### Acceso del pipeline al servidor
+El despliegue automático necesita entrar por SSH, lo que normalmente significa dejar una
+llave con acceso total en manos de GitHub. Aquí está acotada:
+
+- Llave dedicada (no la de administración), atada en `authorized_keys` con
+  `command="/home/ubuntu/bin/desplegar-remoto.sh",restrict`. `command=` hace que la llave
+  solo pueda ejecutar ese wrapper, ignorando lo que pida el cliente; `restrict` apaga port
+  forwarding, agent forwarding y pty.
+- El wrapper valida el entorno (`pre|pro`) y el sha (40 hex) antes de actuar, y registra cada
+  invocación. Si la llave se filtrara, lo peor que permite es desplegar un commit del propio
+  repositorio: no da shell ni lee archivos.
+- `SSH_KNOWN_HOSTS` se fija como secreto en vez de usar `accept-new`, para que un atacante
+  que se interponga no pueda hacerse pasar por la VM.
 
 ### Auditoría
 - `AuditInterceptor` global registra toda mutación HTTP (`POST/PATCH/PUT/DELETE`) en
@@ -101,7 +141,7 @@ volumen total de datos.
 ### Escalado horizontal (Docker Compose)
 - Para un evento grande, levantar réplicas del backend en la misma VM:
   ```bash
-  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --scale backend=3
+  docker compose -p rave-pro -f docker-compose.stack.yml --env-file .env.pro \n    --profile azul --profile verde up -d --scale backend-azul=3
   ```
   El DNS interno de Compose reparte las conexiones que abre el frontend entre las réplicas.
 - La VM "Always Free" da 2 OCPU / 12 GB; si un evento la satura, la salida es subir

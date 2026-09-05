@@ -1,5 +1,5 @@
 # Stack de desarrollo/demo local: PostgreSQL + MinIO + backend + frontend. Es el mismo
-# stack que produccion (ver docker-compose.prod.yml y docs/07-despliegue-oracle.md), pero
+# stack que produccion (ver docker-compose.stack.yml y docs/09-entornos-pre-pro.md), pero
 # con puertos publicados al host, NODE_ENV=development y secretos de ejemplo.
 #
 # Uso:

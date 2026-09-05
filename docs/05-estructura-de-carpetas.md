@@ -83,14 +83,24 @@ RAVE/
 │
 ├── infra/
 │   ├── docker-compose.yml          # Stack local de desarrollo
-│   ├── docker-compose.prod.yml     # Stack de produccion (sin puertos publicados + cloudflared)
+│   ├── docker-compose.stack.yml    # Stack de PRE y PRO (sin puertos publicados, azul/verde)
+│   ├── caddy/Caddyfile             # Borde interno: donde se conmuta de color
 │   ├── .env.example                # Plantilla del stack local
-│   ├── .env.prod.example           # Plantilla de secretos de produccion
-│   └── respaldar.sh                # Respaldo de PostgreSQL + MinIO
+│   ├── .env.pro.example            # Plantilla de secretos de produccion
+│   ├── .env.pre.example            # Plantilla de secretos de staging
+│   ├── entorno.sh                  # Biblioteca comun: resuelve proyecto/env-file por entorno
+│   ├── desplegar.sh                # Despliegue azul/verde con verificacion y conmutacion
+│   ├── revertir.sh                 # Vuelta al color anterior (un caddy reload)
+│   ├── desplegar-remoto.sh         # Wrapper que acota lo que puede hacer la llave SSH del CI
+│   ├── clonar-pro-a-pre.sh         # Snapshot de PRO -> PRE
+│   ├── anonimizar.sql              # Borra datos de compradores tras clonar
+│   └── respaldar.sh                # Respaldo de PostgreSQL + MinIO por entorno
 │
 ├── .github/
+│   ├── actions/desplegar/          # Accion compuesta: despliegue por SSH
 │   └── workflows/
-│       └── ci.yml                  # Build + Test
+│       ├── ci.yml                  # Verificar -> publicar imagenes -> desplegar
+│       └── desplegar-manual.yml    # Redespliegue de un sha arbitrario
 │
 ├── docs/                           # Esta carpeta — documentación de arquitectura
 ├── project_requirements.md
