@@ -88,6 +88,14 @@ compose up -d caddy cloudflared
 # no hace nada, pero es inofensivo.
 compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 
+# El estado se registra AQUI, no al final: a partir de este punto Caddy ya apunta al color
+# nuevo, y el archivo de estado describe hacia donde apunta Caddy, no si el despliegue
+# salio bien. Registrarlo despues de la verificacion externa dejaba un agujero: si esa
+# verificacion fallaba, el estado quedaba sin escribir y `revertir.sh` no tenia a que
+# volver — justo cuando mas falta hace.
+COLOR_ANTERIOR=${COLOR_ACTIVO:-}
+escribir_estado "$DESTINO" "$SHA"
+
 # --- 7. Verificacion externa --------------------------------------------------
 # La prueba que de verdad importa: la cadena completa Cloudflare -> caddy -> frontend
 # devolviendo el sha nuevo desde fuera del servidor.
@@ -96,10 +104,6 @@ if ! verificar_externa "$HOSTNAME_PUBLICO" "$SHA"; then
   echo "       Caddy YA apunta a $DESTINO. Si el sitio esta caido: ./revertir.sh $ENTORNO" >&2
   exit 1
 fi
-
-# --- 8. Registrar el estado ---------------------------------------------------
-COLOR_ANTERIOR=${COLOR_ACTIVO:-}
-escribir_estado "$DESTINO" "$SHA"
 
 echo "=================================================================="
 echo " Desplegado: $ENTORNO ahora sirve $DESTINO ($SHA)"
