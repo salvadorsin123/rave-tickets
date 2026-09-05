@@ -107,6 +107,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Sin esto buildx usa el driver "docker", que no soporta exportar cache: el build
+      # falla con "Cache export is not supported for the docker driver". setup-buildx
+      # levanta el driver docker-container, que si lo soporta.
+      - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
