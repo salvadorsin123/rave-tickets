@@ -29,15 +29,21 @@ HOSTNAME_PUBLICO=$(leer_env PUBLIC_HOSTNAME)
 
 echo "==> $ENTORNO: sirviendo $COLOR_ACTIVO, se intenta volver a $ANTERIOR"
 
-# El color anterior tiene que seguir arriba. Si alguien lo apago a mano, revertir con un
-# reload solo lograria un 502: mejor decirlo claro que dejar el sitio roto.
-ESTADO_ANTERIOR=$(compose ps --format '{{.Service}} {{.State}}' 2>/dev/null | sed -n "s/^frontend-$ANTERIOR //p")
-[ "$ESTADO_ANTERIOR" = "running" ] || {
-  echo "ERROR: frontend-$ANTERIOR no esta corriendo (estado: '${ESTADO_ANTERIOR:-ausente}')." >&2
-  echo "       Para volver a una version anterior hay que desplegarla:" >&2
-  echo "         ./desplegar.sh $ENTORNO <sha-anterior>" >&2
-  exit 1
-}
+# El color anterior tiene que seguir arriba ENTERO. Se comprueban los dos servicios, no
+# solo el frontend: el healthcheck del frontend pega a /api/health, que se responde a si
+# mismo sin tocar el backend. Con el backend caido el sitio pareceria sano —las paginas
+# cargan— y cada llamada a la API daria 502.
+ESTADOS=$(compose ps --format '{{.Service}} {{.State}}' 2>/dev/null)
+for SERVICIO in "backend-$ANTERIOR" "frontend-$ANTERIOR"; do
+  ESTADO=$(echo "$ESTADOS" | sed -n "s/^$SERVICIO //p")
+  [ "$ESTADO" = "running" ] || {
+    echo "ERROR: $SERVICIO no esta corriendo (estado: '${ESTADO:-ausente}')." >&2
+    echo "       El color $ANTERIOR esta incompleto, conmutar hacia el dejaria el sitio roto." >&2
+    echo "       Para volver a una version anterior hay que desplegarla:" >&2
+    echo "         ./desplegar.sh $ENTORNO <sha-anterior>" >&2
+    exit 1
+  }
+done
 
 SALUD=$(compose exec -T "frontend-$ANTERIOR" node -e \
   "require('http').get('http://127.0.0.1:3000/api/health',r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log(d))}).on('error',e=>{console.error(e.message);process.exit(1)})")

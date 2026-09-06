@@ -84,6 +84,12 @@ docker exec -i "$DB_PRO" pg_dump -U rave -d ravedb --format=custom > "$TEMPORAL/
 # Solo los backends: son los unicos que tocan la base y el bucket. Los frontends pueden
 # quedarse arriba devolviendo error un momento, que en PRE da igual.
 echo "==> deteniendo backends de PRE"
+# Se anota cuales estaban corriendo para volver a levantar exactamente esos. Levantar solo
+# el color activo dejaba al inactivo a medias (su frontend arriba, su backend caido), y eso
+# desarma la reversion: revertir.sh conmutaria a un color donde las paginas cargan pero
+# toda llamada a la API da 502.
+BACKENDS_ACTIVOS=$(compose ps --format '{{.Service}} {{.State}}' 2>/dev/null \
+  | sed -n 's/^\(backend-[a-z]*\) running$/\1/p' | tr '\n' ' ')
 compose stop backend-azul backend-verde 2>/dev/null || true
 compose up -d --wait --wait-timeout 120 db minio
 
@@ -144,9 +150,11 @@ else
 fi
 
 # --- 6. Volver a levantar PRE -------------------------------------------------
-echo "==> levantando el color activo de PRE (${COLOR_ACTIVO:-azul})"
-compose up -d --wait --wait-timeout 300 \
-  "backend-${COLOR_ACTIVO:-azul}" "frontend-${COLOR_ACTIVO:-azul}"
+# Se restauran exactamente los backends que estaban corriendo, no solo el activo.
+[ -n "$BACKENDS_ACTIVOS" ] || BACKENDS_ACTIVOS="backend-${COLOR_ACTIVO:-azul}"
+echo "==> levantando de vuelta:$BACKENDS_ACTIVOS"
+# shellcheck disable=SC2086
+compose up -d --wait --wait-timeout 300 $BACKENDS_ACTIVOS "frontend-${COLOR_ACTIVO:-azul}"
 
 echo "=================================================================="
 echo " PRE refrescado desde produccion."
