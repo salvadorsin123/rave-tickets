@@ -43,14 +43,30 @@ FIN
   exit 2
 fi
 
+RUTA_PRO=${RUTA_PRO:-/home/ubuntu/rave-pro}
+ENV_PRO="$RUTA_PRO/infra/.env.pro"
+[ -f "$ENV_PRO" ] || { echo "ERROR: no existe $ENV_PRO (define RUTA_PRO si el clon esta en otro lado)" >&2; exit 1; }
+
 contenedor_pro() {
   docker ps --quiet \
     --filter "label=com.docker.compose.project=rave-pro" \
     --filter "label=com.docker.compose.service=$1" | head -1
 }
 
+leer_env_de() {
+  sed -n "s/^$2=//p" "$1" | head -1
+}
+
+nombre_de() {
+  docker inspect -f '{{.Name}}' "$1" | sed 's|^/||'
+}
+
 DB_PRO=$(contenedor_pro db)
 [ -n "$DB_PRO" ] || { echo "ERROR: no encuentro el contenedor db de rave-pro corriendo." >&2; exit 1; }
+MINIO_PRO=$(contenedor_pro minio)
+[ -n "$MINIO_PRO" ] || { echo "ERROR: no encuentro el contenedor minio de rave-pro corriendo." >&2; exit 1; }
+MINIO_PRE=$(docker ps --quiet --filter "label=com.docker.compose.project=rave-pre" --filter "label=com.docker.compose.service=minio" | head -1)
+[ -n "$MINIO_PRE" ] || { echo "ERROR: el minio de PRE no esta corriendo." >&2; exit 1; }
 
 TEMPORAL=$(mktemp -d /var/tmp/clonar-pro-a-pre.XXXXXX)
 trap 'rm -rf "$TEMPORAL"' EXIT INT TERM
@@ -63,12 +79,6 @@ echo "=================================================================="
 # --- 1. Leer de PRO (solo lectura) --------------------------------------------
 echo "==> pg_dump de produccion"
 docker exec -i "$DB_PRO" pg_dump -U rave -d ravedb --format=custom > "$TEMPORAL/pro.dump"
-
-echo "==> tar del volumen de MinIO de produccion"
-docker run --rm \
-  -v rave-pro_minio-data:/data:ro \
-  -v "$TEMPORAL":/salida \
-  alpine tar czf /salida/minio.tar.gz -C /data .
 
 # --- 2. Detener lo que escribe en PRE -----------------------------------------
 # Solo los backends: son los unicos que tocan la base y el bucket. Los frontends pueden
@@ -86,15 +96,32 @@ compose exec -T db psql -U rave -d postgres -v ON_ERROR_STOP=1 \
 echo "==> restaurando el dump"
 compose exec -T db pg_restore -U rave -d ravedb --no-owner --no-privileges < "$TEMPORAL/pro.dump"
 
-# --- 4. Restaurar los objetos de MinIO en PRE ---------------------------------
-# Se detiene MinIO para no reemplazarle el disco por debajo mientras corre.
-echo "==> reemplazando el bucket de PRE"
-compose stop minio
-docker run --rm \
-  -v rave-pre_minio-data:/data \
-  -v "$TEMPORAL":/entrada:ro \
-  alpine sh -c 'rm -rf /data/* /data/.minio.sys && tar xzf /entrada/minio.tar.gz -C /data'
-compose up -d --wait --wait-timeout 120 minio
+# --- 4. Copiar los objetos de MinIO a PRE -------------------------------------
+# Por la API S3, NO copiando el volumen. Copiar el volumen entero arrastra
+# /data/.minio.sys, que es la base de identidades de MinIO: PRE terminaria con el usuario y
+# la llave secreta de PRODUCCION, y su backend moriria al arrancar con
+# "SignatureDoesNotMatch" contra su propio almacenamiento, porque su .env.pre tiene otras.
+# (Tarlo entero si sirve para respaldar y restaurar la MISMA instancia, que es lo que hace
+# respaldar.sh; entre dos instancias distintas, no.)
+echo "==> copiando los objetos del bucket por la API S3"
+COPIADOR=$(docker run -d --rm --network rave-pro_default --entrypoint sleep minio/mc 600)
+trap 'docker rm -f "$COPIADOR" >/dev/null 2>&1; rm -rf "$TEMPORAL"' EXIT INT TERM
+docker network connect rave-pre_default "$COPIADOR"
+
+# Se direcciona por nombre de contenedor, no por el alias "minio": ese alias existe en las
+# dos redes y desde un contenedor conectado a ambas seria ambiguo.
+# Las credenciales van por stdin (heredoc), no como argumentos, para que no queden visibles
+# en `ps` mientras corre el comando.
+docker exec -i "$COPIADOR" sh -s <<FIN
+set -e
+mc alias set origen  http://$(nombre_de "$MINIO_PRO"):9000 '$(leer_env_de "$ENV_PRO" MINIO_ROOT_USER)' '$(leer_env_de "$ENV_PRO" MINIO_ROOT_PASSWORD)' > /dev/null
+mc alias set destino http://$(nombre_de "$MINIO_PRE"):9000 '$(leer_env MINIO_ROOT_USER)' '$(leer_env MINIO_ROOT_PASSWORD)' > /dev/null
+mc mb --ignore-existing destino/boletos-pdf > /dev/null
+mc mirror --overwrite --remove origen/boletos-pdf destino/boletos-pdf
+echo "    objetos en PRE: \$(mc ls --recursive destino/boletos-pdf | wc -l)"
+FIN
+docker rm -f "$COPIADOR" >/dev/null
+trap 'rm -rf "$TEMPORAL"' EXIT INT TERM
 
 # --- 5. Anonimizar ------------------------------------------------------------
 if [ "$ANONIMIZAR" = "si" ]; then
